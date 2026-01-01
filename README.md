@@ -111,5 +111,10 @@ To a vector in this form
 
 
 
+# Sources
 
 https://www.johndcook.com/blog/2025/05/07/quaternions-and-rotation-matrices/
+https://www.guandaoyang.com/PointFlow/
+https://arxiv.org/pdf/1906.12320
+https://github.com/openai/point-e/tree/main
+https://www.youtube.com/watch?v=EhndHhIvWWw&list=WL&index=17

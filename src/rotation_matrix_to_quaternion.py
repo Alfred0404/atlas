@@ -3,7 +3,7 @@ import numpy as np
 from scipy.stats import special_ortho_group, norm
 
 
-def rotation_matrix_to_quaternion(R):
+def rotation_matrix_to_quaternion(R: np.ndarray) -> np.ndarray:
     """
     Convert a rotation matrix to a quaternion.
     Args:
