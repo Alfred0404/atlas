@@ -3,24 +3,6 @@ import numpy as np
 from scipy.stats import special_ortho_group, norm
 
 
-def quaternion_to_rotation_matrix(q):
-    """
-    Convert a quaternion to a rotation matrix.
-    Args:
-        q (np.ndarray): A quaternion represented as a 4-element array [q0, q1, q2, q3].
-    Returns:
-        np.ndarray: A 3x3 rotation matrix.
-    """
-    q0, q1, q2, q3 = q
-    return np.array(
-        [
-            [2 * (q0**2 + q1**2) - 1, 2 * (q1 * q2 - q0 * q3), 2 * (q1 * q3 + q0 * q2)],
-            [2 * (q1 * q2 + q0 * q3), 2 * (q0**2 + q2**2) - 1, 2 * (q2 * q3 - q0 * q1)],
-            [2 * (q1 * q3 - q0 * q2), 2 * (q2 * q3 + q0 * q1), 2 * (q0**2 + q3**2) - 1],
-        ]
-    )
-
-
 def rotation_matrix_to_quaternion(R):
     """
     Convert a rotation matrix to a quaternion.
