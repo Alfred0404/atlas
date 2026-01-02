@@ -1,6 +1,7 @@
 from rotation_matrix_to_quaternion import rotation_matrix_to_quaternion
 import numpy as np
 import logging
+from typing import NamedTuple
 
 from formating.customFormatter import CustomFormatter
 import json
@@ -22,25 +23,25 @@ logger.addHandler(ch)
 mpd_file_path = "./mpd_files/test.mpd"
 
 
+class RawBrickData(NamedTuple):
+    brick_id: str
+    world_matrix: (
+        np.ndarray
+    )  # shape (4,4) transformation matrix, contains position and rotation
+    color: float
+
+
 class MPDParser:
+    """Parser for LEGO set mpd files.
+    Args:
+        mpd_file_path (str): Path to the mpd file.
+    """
+
     def __init__(self, mpd_file_path: str):
         self.mpd_file_path = mpd_file_path
         self.lines = self.read_lego_set_file()
-        self._registry = {} # to store the graph structure
-        self.raw_data = [] # to store the raw data lines
-
-    def _build_registry(self):
-        """Build a registry of the mpd file structure."""
-
-        for line in self.lines:
-            if line.startswith("0 FILE"): # means the following lines are part of a submodel (add file key to registry, and following lines to its list)
-                # New submodel key
-                current_file = line.split(maxsplit=2)[2]
-                print(f"Current file: {current_file}")
-                self._registry[current_file] = []
-            elif line.startswith("1 "): # means information about a brick or another submodel
-                # Add line to current submodel
-                self._registry[current_file].append(line)
+        self._registry = {}  # to store the graph structure
+        self.raw_data = []  # to store the raw data lines
 
     def read_lego_set_file(self) -> list[str]:
         """Read the content of a lego set mpd file.
@@ -49,16 +50,90 @@ class MPDParser:
         Returns:
             list[str]: List of lines from the mpd file.
         """
-        with open(mpd_file_path, "r") as file:
-            parsed_data = file.readlines()
-        return parsed_data
+        with open(self.mpd_file_path, "r") as file:
+            self.lines = file.readlines()
+
+    def _build_registry(self):
+        """Build a registry of the mpd file structure."""
+
+        for line in self.lines:
+            if line.startswith(
+                "0 FILE"
+            ):  # means the following lines are part of a submodel (add file key to registry, and following lines to its list)
+                # New submodel key
+                current_file = line.split(maxsplit=2)[2]
+                self._registry[current_file] = []
+
+            elif line.startswith(
+                "1 "
+            ):  # means information about a brick or another submodel
+                # Add line to current submodel
+                self._registry[current_file].append(line)
+
+    def flatten(self, model_name: str, parent_matrix: np.array):
+        """Flatten the mpd file structure into a list of vectors.
+        Args:
+            model_name (str): Name of the submodel to flatten.
+            parent_matrix (np.array): Transformation matrix from parent.
+        Returns:
+            list[np.ndarray]: List of flattened vectors.
+        """
+
+        submodel_lines = self._registry.get(model_name, [])
+        logger.debug(f"Flattening model: {model_name} with {len(submodel_lines)} lines")
+
+        for line in submodel_lines:
+            if line.startswith("1 "):
+                # Parse transformation matrix components from the line
+                parts = line.split(maxsplit=14)
+                # Format: 1 color x y z a b c d e f g h i file
+                color = float(parts[1])
+                x, y, z = float(parts[2]), float(parts[3]), float(parts[4])
+                # Transformation matrix elements
+                a, b, c = float(parts[5]), float(parts[6]), float(parts[7])
+                d, e, f = float(parts[8]), float(parts[9]), float(parts[10])
+                g, h, i = float(parts[11]), float(parts[12]), float(parts[13])
+
+                local_matrix = np.array(
+                    [
+                        [a, b, c, x],
+                        [d, e, f, y],
+                        [g, h, i, z],
+                        [0, 0, 0, 1],
+                    ]
+                )
+
+                # compute world matrix to get the overall brick position and rotation
+                world_matrix = parent_matrix @ local_matrix
+
+                # if submodel, recursively flatten it
+                if line.endswith(".ldr\n"):
+                    submodel_name = line.split(maxsplit=14)[-1]
+                    logger.debug(f"Found submodel: {submodel_name}, flattening...")
+                    self.flatten(submodel_name, world_matrix)
+
+                # if brick, extract its data and store it
+                elif line.endswith(".dat\n"):
+                    brick_vector, brick_id = line_to_vector(line)
+                    brick_position = world_matrix[:3, 3]
+                    brick_rotation_matrix = world_matrix[:3, :3]
+                    brick_color = brick_vector[0]
+
+                    # Store as dict or structured array to preserve string brick_id
+                    brick_data = RawBrickData(
+                        brick_id=brick_id,
+                        world_matrix=world_matrix,
+                        color=brick_color,
+                    )
+                    self.raw_data.append(brick_data)
+        # return self.raw_data
 
 
 def line_to_vector(line: str) -> np.ndarray:
-    """Convert a line from the mpd file to a vector of floats, with quaternions convertion.
+    """Convert a line from the mpd file to a vector of floats.
     Exemple line:
         1 71 0 0 0 0 0 -1 0 -1 0 -1 0 0 32324.dat
-    -> [71, 0, 0, 0, 0, 0, -1, 0, 32324]
+    -> [71, 0, 0, 0, 0, 0, -1, 0, -1, 0, -1, 0, 0, 32324]
 
     Args:
         line (str): A line from the mpd file representing a brick.
@@ -70,34 +145,33 @@ def line_to_vector(line: str) -> np.ndarray:
     line = line.split(" ", 1)[1].strip()
     # extract all components
     line_vec = [field for field in line.split()]
-    # get only the brick id (last element) without the .dat extension : "32324.dat" -> 32324
-    line_vec[-1] = int(line_vec[-1].split(".")[0])
-    # convert all back to float
-    line_vec = np.array([float(val) for val in line_vec])
-    # Convert rotation matrix to quaternions for compute efficiency
-    quaternions = rotation_matrix_to_quaternion(
-        np.array(
-            [
-                [line_vec[4], line_vec[5], line_vec[6]],
-                [line_vec[7], line_vec[8], line_vec[9]],
-                [line_vec[10], line_vec[11], line_vec[12]],
-            ]
-        )
-    )
-    # Rebuild the final vector with quaternions [brick_id, x, y, z, q0, q1, q2, q3, color_id]
-    final_vector = np.array([line_vec[-1], *line_vec[1:4], *quaternions, line_vec[0]])
-    logger.info(f"Converted line to vector: {line}\n-> {final_vector}")
+    # get only the brick id (last element) without the .dat extension : "32324.dat" -> "32324" or "2412b.dat" -> "2412b"
+    brick_id = line_vec[-1].split(".")[0]
+    # convert numeric values to float
+    numeric_values = np.array([float(val) for val in line_vec[:-1]])
 
-    return final_vector
+    # logger.info(
+    #     f"Converted line to vector: {line}\n-> {numeric_values}, brick_id: {brick_id}"
+    # )
+
+    return numeric_values, brick_id
 
 
 if __name__ == "__main__":
     parser = MPDParser(mpd_file_path)
     lego_set_data = parser.read_lego_set_file()
+
+    # test flattening and registry building
+    parser._build_registry()
+    logger.info("Building registry...")
+    logger.info(f"Registry built:\n{json.dumps(parser._registry, indent=2)}")
+
+    parser.flatten("4484 - Main Model.ldr\n", np.eye(4))
+    # print(parser.raw_data)
+    logger.info(
+        f"Flattened data:\n{[raw_brick_data for raw_brick_data in parser.raw_data]}"
+    )
+
     # logger.info(lego_set_data)
     # vector = line_to_vector("1 71 0 0 0 0 0 -1 0 -1 0 -1 0 0 32324.dat")
     # logger.info(f"Final vector: {vector}\nVector shape: {vector.shape}")
-
-    logger.info("Building registry...")
-    parser._build_registry()
-    logger.info(f"Registry built:\n{json.dumps(parser._registry, indent=2)}")
