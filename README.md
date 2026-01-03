@@ -118,3 +118,6 @@ https://www.guandaoyang.com/PointFlow/
 https://arxiv.org/pdf/1906.12320
 https://github.com/openai/point-e/tree/main
 https://www.youtube.com/watch?v=EhndHhIvWWw&list=WL&index=17
+https://www.reddit.com/r/gamedev/comments/ffo8gg/quaternions_basics_for_3d_rotation_pt_1/
+https://eater.net/quaternions/
+https://docs.scipy.org/doc/scipy-1.16.1/reference/generated/scipy.spatial.transform.Rotation.as_quat.html

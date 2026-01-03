@@ -1,35 +1,52 @@
-# snippet from https://www.johndcook.com/blog/2025/05/07/quaternions-and-rotation-matrices/
 import numpy as np
-from scipy.stats import special_ortho_group, norm
+import logging
+from scipy.spatial.transform import Rotation as R
+from formating.customFormatter import CustomFormatter
+from config import LOGGING_LEVEL
 
 
-def rotation_matrix_to_quaternion(R: np.ndarray) -> np.ndarray:
-    """
-    Convert a rotation matrix to a quaternion.
+# Set up logging
+# --------------------------------
+logger = logging.getLogger(__name__)
+logger.setLevel(LOGGING_LEVEL)
+
+# create console handler with CustomFormatter
+ch = logging.StreamHandler()
+ch.setLevel(LOGGING_LEVEL)
+ch.setFormatter(CustomFormatter())
+
+logger.addHandler(ch)
+# --------------------------------
+
+
+def rotation_matrix_to_quaternion(rotation_matrix: np.ndarray) -> np.ndarray:
+    """Convert a rotation matrix to a quaternion.
     Args:
-        R (np.ndarray): A 3x3 rotation matrix.
+        rotation_matrix (np.ndarray): Rotation matrix of shape (3, 3).
     Returns:
-        np.ndarray: A quaternion represented as a 4-element array [q0, q1, q2, q3].
+        np.ndarray: Quaternion of shape (4,) in the format [w, x, y, z] where w is the scalar part.
     """
-    r11, r12, r13 = R[0, 0], R[0, 1], R[0, 2]
-    r21, r22, r23 = R[1, 0], R[1, 1], R[1, 2]
-    r31, r32, r33 = R[2, 0], R[2, 1], R[2, 2]
+    rotation = R.from_matrix(rotation_matrix)
+    quaternion = rotation.as_quat(
+        scalar_first=True
+    )  # [w, x, y, z] with w the scalar part
 
-    # Calculate quaternion components
-    q0 = 0.5 * np.sqrt(1 + r11 + r22 + r33)
-    q1 = 0.5 * np.sqrt(1 + r11 - r22 - r33) * np.sign(r32 - r23)
-    q2 = 0.5 * np.sqrt(1 - r11 + r22 - r33) * np.sign(r13 - r31)
-    q3 = 0.5 * np.sqrt(1 - r11 - r22 + r33) * np.sign(r21 - r12)
+    # prefer positive w for consistency to help the learning process, as q and -q represent the same rotation
+    if quaternion[0] < 0:
+        quaternion = -quaternion
 
-    return np.array([q0, q1, q2, q3])
-
-
-def main():
-    # Test conversion from rotation matrix to quaternion
-    rotation_matrix = np.array([[1.0, 0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-    q = rotation_matrix_to_quaternion(rotation_matrix)
-    print(q)  # Expected output: [1. 0. 0. 0]
+    return quaternion
 
 
 if __name__ == "__main__":
-    main()
+
+    # example
+    r = np.array(
+        [[1.0, 0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    )  # world rotation matrix 3x3
+    quat = rotation_matrix_to_quaternion(r)
+
+    logger.debug("Rotation matrix :")
+    logger.debug(r)
+    logger.debug("Quaternion (w, x, y, z) :")
+    logger.debug(quat)
