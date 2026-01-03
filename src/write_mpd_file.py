@@ -1,6 +1,7 @@
 import numpy as np
 from typing import List
 from mpd_parser import RawBrickData
+from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
 
 
 def write_mpd_file(
@@ -22,11 +23,12 @@ def write_mpd_file(
         # Write each brick
         for brick in raw_data:
             # Extract position from world matrix (last column, first 3 rows)
-            position = brick.world_matrix[:3, 3]
+            position = get_position_from_world_matrix(brick.world_matrix)
             x, y, z = position[0], position[1], position[2]
 
             # Extract rotation matrix (3x3 upper-left block)
-            rotation = brick.world_matrix[:3, :3]
+            rotation = get_rotation_matrix_from_world_matrix(brick.world_matrix)
+
             a, b, c = rotation[0, 0], rotation[0, 1], rotation[0, 2]
             d, e, f = rotation[1, 0], rotation[1, 1], rotation[1, 2]
             g, h, i = rotation[2, 0], rotation[2, 1], rotation[2, 2]

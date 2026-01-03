@@ -4,6 +4,7 @@ import logging
 from typing import NamedTuple
 
 from formating.customFormatter import CustomFormatter
+from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
 import json
 
 # Set up logging
@@ -39,9 +40,9 @@ class MPDParser:
 
     def __init__(self, mpd_file_path: str):
         self.mpd_file_path = mpd_file_path
-        self.lines = self.read_lego_set_file()
-        self._registry = {}  # to store the graph structure
-        self.raw_data = []  # to store the raw data lines
+        self.lines: list[str] = self.read_lego_set_file()
+        self._registry: dict[str, list[str]] = {}  # to store the graph structure
+        self.raw_data: list[RawBrickData] = []  # to store the raw data lines
 
     def read_lego_set_file(self) -> list[str]:
         """Read the content of a lego set mpd file.
@@ -115,8 +116,6 @@ class MPDParser:
                 # if brick, extract its data and store it
                 elif line.endswith(".dat\n"):
                     brick_vector, brick_id = line_to_vector(line)
-                    brick_position = world_matrix[:3, 3]
-                    brick_rotation_matrix = world_matrix[:3, :3]
                     brick_color = brick_vector[0]
 
                     # Store as dict or structured array to preserve string brick_id
@@ -126,7 +125,6 @@ class MPDParser:
                         color=brick_color,
                     )
                     self.raw_data.append(brick_data)
-        # return self.raw_data
 
 
 def line_to_vector(line: str) -> np.ndarray:
@@ -149,10 +147,6 @@ def line_to_vector(line: str) -> np.ndarray:
     brick_id = line_vec[-1].split(".")[0]
     # convert numeric values to float
     numeric_values = np.array([float(val) for val in line_vec[:-1]])
-
-    # logger.info(
-    #     f"Converted line to vector: {line}\n-> {numeric_values}, brick_id: {brick_id}"
-    # )
 
     return numeric_values, brick_id
 
