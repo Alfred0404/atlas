@@ -113,6 +113,8 @@ To a vector in this form
 
 # Sources
 
+[Bricks list](https://library.ldraw.org/parts/list)
+
 https://www.johndcook.com/blog/2025/05/07/quaternions-and-rotation-matrices/
 https://www.guandaoyang.com/PointFlow/
 https://arxiv.org/pdf/1906.12320

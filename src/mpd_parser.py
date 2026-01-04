@@ -4,17 +4,18 @@ import logging
 from typing import NamedTuple
 
 from formating.customFormatter import CustomFormatter
+from config import LOGGING_LEVEL
 from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
 import json
 
 # Set up logging
 # --------------------------------
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(LOGGING_LEVEL)
 
 # create console handler with CustomFormatter
 ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
+ch.setLevel(LOGGING_LEVEL)
 ch.setFormatter(CustomFormatter())
 
 logger.addHandler(ch)
@@ -48,14 +49,10 @@ class MPDParser:
     def __init__(self, mpd_file_path: str):
         self.mpd_file_path = mpd_file_path
         self.lines: list[str] = self.read_lego_set_file()  # lines of the mpd file
-        self._registry: dict[str, list[str]] = {}  # to store the graph structure
-        self.raw_data: list[RawBrickData] = []  # to store the raw data lines
-        self.quat_data: list[BrickDataQuat] = (
-            []
-        )  # to store data with quaternion rotations
-        self.max_brick_distance: float = (
-            0.0  # to store the maximum distance between bricks
-        )
+        self._submodels: dict[str, list[str]] = {}  # registry of submodels
+        self.raw_data: list[RawBrickData] = []
+        self.quat_data: list[BrickDataQuat] = [] # data with quaternion rotations
+        self.max_brick_distance: float = 0.0  #  max distance of a brick from origin
 
     def read_lego_set_file(self) -> list[str]:
         """Read the content of a lego set mpd file.
@@ -76,13 +73,13 @@ class MPDParser:
             ):  # means the following lines are part of a submodel (add file key to registry, and following lines to its list)
                 # New submodel key
                 current_file = line.split(maxsplit=2)[2]
-                self._registry[current_file] = []
+                self._submodels[current_file] = []
 
             elif line.startswith(
                 "1 "
             ):  # means information about a brick or another submodel
                 # Add line to current submodel
-                self._registry[current_file].append(line)
+                self._submodels[current_file].append(line)
 
     def flatten(self, model_name: str, parent_matrix: np.array):
         """Flatten the mpd file structure into a list of vectors.
@@ -93,7 +90,7 @@ class MPDParser:
             list[np.ndarray]: List of flattened vectors.
         """
 
-        submodel_lines = self._registry.get(model_name, [])
+        submodel_lines = self._submodels.get(model_name, [])
         logger.debug(f"Flattening model: {model_name} with {len(submodel_lines)} lines")
 
         for line in submodel_lines:
@@ -123,7 +120,7 @@ class MPDParser:
                 # if submodel, recursively flatten it
                 if line.endswith(".ldr\n"):
                     submodel_name = line.split(maxsplit=14)[-1]
-                    logger.debug(f"Found submodel: {submodel_name}, flattening...")
+                    logger.debug(f"Found submodel: {submodel_name}")
                     self.flatten(submodel_name, world_matrix)
 
                 # if brick, extract its data and store it
@@ -154,7 +151,7 @@ class MPDParser:
         )
         avg_position = np.mean(positions, axis=0)
 
-        logger.info(f"Centering model around origin. Average position: {avg_position}")
+        logger.debug(f"Centering model around origin. Average position: {avg_position}")
 
         # Update world matrices to center around origin
         for idx, brick in enumerate(self.raw_data):
@@ -198,6 +195,7 @@ class MPDParser:
                 rotation_quat=rotation_quat,
                 color=brick.color,
             )
+
             self.quat_data.append(brick_quat_data)
 
     def calculate_max_brick_distance(self):
@@ -214,19 +212,7 @@ class MPDParser:
                 max_distance_squared = distance_squared
 
         self.max_brick_distance = np.sqrt(max_distance_squared)
-
-    def write_metadata(self, output_path: str, key: str, value):
-        """Write metadata including max brick distance to a JSON file.
-        Args:
-            output_path (str): Path to the output JSON file.
-        """
-
-        with open(output_path, "r+") as json_file:
-            json_data = json.load(json_file)
-            json_data[key] = value
-            json_file.seek(0)
-            json_file.truncate()
-            json.dump(json_data, json_file, indent=4)
+        logger.debug(f"Max brick distance: {self.max_brick_distance}")
 
     def process_file(self, model_name: str):
         """Process the mpd file: build registry, flatten structure, center model, and convert to quaternion representation.
@@ -238,13 +224,11 @@ class MPDParser:
         self.center_around_origin()
         self.to_quat_representation()
         self.calculate_max_brick_distance()
-        self.write_metadata(
-            "./metadata.json", "max_brick_distance", self.max_brick_distance
-        )
+        write_max_brick_distance("./metadata.json", self.max_brick_distance)
 
     def reset(self):
         """Reset the parser state, clearing registry and data."""
-        self._registry = {}
+        self._submodels = {}
         self.raw_data = []
         self.quat_data = []
 
@@ -273,7 +257,28 @@ def line_to_vector(line: str) -> np.ndarray:
     return numeric_values, brick_id
 
 
+def write_max_brick_distance(output_path: str, max_distance: float):
+    """Write max brick distance to a JSON file.
+    Only updates the value if it is greater than the existing value.
+    Args:
+        output_path (str): Path to the output JSON file.
+        max_distance (float): The new max distance to potentially write.
+    """
+
+    with open(output_path, "r+") as json_file:
+        json_data = json.load(json_file)
+
+        # Only update if the new value is greater than the existing one
+        if (
+            "max_brick_distance" not in json_data
+            or max_distance > json_data["max_brick_distance"]
+        ):
+            json_data["max_brick_distance"] = max_distance
+            json_file.seek(0)
+            json_file.truncate()
+            json.dump(json_data, json_file, indent=4)
+
+
 if __name__ == "__main__":
     parser = MPDParser(mpd_file_path)
     parser.process_file("4484 - Main Model.ldr\n")
-    logger.info(f"Max brick distance: {parser.max_brick_distance}")
