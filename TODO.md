@@ -12,7 +12,9 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$
     - the brick mapping, the "vocabulary" of the model, with top-k bricks (`index_to_id` and `id_to_index`)
     - color mapping
 
-- start to think about the actual model architecture
 
+- [x] split responsibility between dataset builder and mpd parser
 - [x] optimize centering around origin
 - [] optimize flatten method
+
+- start to think about the actual model architecture

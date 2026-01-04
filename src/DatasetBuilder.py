@@ -46,6 +46,11 @@ class DatasetBuilder:
             self.to_quat_representation()
             self.calculate_max_brick_distance()
 
+            self.brick_vocabulary = self.map_brick_ids()
+            self.color_vocabulary = self.map_brick_colors()
+
+            self._finalize_dataset()
+
     def center_around_origin(self):
         """Center the model around the origin based on the average position of all bricks."""
         if not self.raw_data:
@@ -136,7 +141,7 @@ class DatasetBuilder:
         }
 
         # Write mapping to metadata.json
-        self._update_metadata(self.metadata_path, "brick_id_mapping", brick_id_to_idx)
+        self._update_metadata(self.metadata_path, "brick_vocabulary", brick_id_to_idx)
 
         logger.debug(f"Mapped {len(unique_brick_ids)} unique brick IDs to integers.")
         return brick_id_to_idx
@@ -154,7 +159,7 @@ class DatasetBuilder:
         color_to_idx = {color: idx for idx, color in enumerate(unique_colors)}
 
         # Write mapping to metadata.json
-        self._update_metadata(self.metadata_path, "color_mapping", color_to_idx)
+        self._update_metadata(self.metadata_path, "color_vocabulary", color_to_idx)
 
         logger.debug(f"Mapped {len(unique_colors)} unique colors to integers.")
         return color_to_idx
@@ -187,8 +192,8 @@ class DatasetBuilder:
 
         self.processed_data = []  # Clear previous data
         for brick in self.quat_data:
-            brick_idx = id_mapping["brick_id_mapping"].get(brick.brick_id, -1)
-            color_idx = id_mapping["color_mapping"].get(brick.color, -1)
+            brick_idx = id_mapping["brick_vocabulary"].get(brick.brick_id, -1)
+            color_idx = id_mapping["color_vocabulary"].get(brick.color, -1)
 
             processed_brick = ProcessedBrickData(
                 brick_idx=brick_idx,
@@ -204,7 +209,7 @@ class DatasetBuilder:
         return self.processed_data
 
     def _finalize_dataset(self):
-        """Finalize the dataset by writing the global max distance to metadata."""
+        """Finalize the dataset by writing the global max distance and vocabularies to metadata."""
         self._update_metadata(
             self.metadata_path, "global_max_brick_distance", self.global_max_distance
         )
@@ -245,6 +250,6 @@ class DatasetBuilder:
 
 
 if __name__ == "__main__":
-    metadata_path = "./mpd_files/metadata.json"
+    metadata_path = "./metadata.json"
     dataset_builder = DatasetBuilder(metadata_path)
     dataset_builder.process_dataset()
