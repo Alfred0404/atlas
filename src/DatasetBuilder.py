@@ -30,6 +30,7 @@ class DatasetBuilder:
         self.raw_data: list[RawBrickData] = []
         self.quat_data: list[BrickDataQuat] = []
         self.processed_data: list[ProcessedBrickData] = []
+        self.final_tensor = None
 
     def process_dataset(self):
 
@@ -56,7 +57,9 @@ class DatasetBuilder:
                 }
             )
 
-            self._finalize_dataset()
+            self._save_global_metadata()
+            self._to_tensor()
+            self.save_dataset(output_path=f"./processed_sets/{mpd_file.stem}.npy")
 
     def center_around_origin(self):
         """Center the model around the origin based on the average position of all bricks."""
@@ -256,6 +259,35 @@ class DatasetBuilder:
         """
         return rotation_matrix_to_quaternion(rotation_matrix)
 
+    def _to_tensor(self):
+        """Finalize the process by converting data from ProcessedBrickData to a tensor."""
+
+        for brick in self.processed_data:
+            # create the tensor for each brick by unpacking its attributes
+            brick_tensor = np.concatenate(
+                (
+                    [brick.brick_idx],
+                    brick.position,
+                    brick.rotation_quat,
+                    [brick.color_idx],
+                )
+            )
+
+            if self.final_tensor is None:
+                self.final_tensor = brick_tensor[np.newaxis, :]
+            else:
+                self.final_tensor = np.vstack((self.final_tensor, brick_tensor[np.newaxis, :]))
+
+        logger.info(f"Final tensor shape: {self.final_tensor.shape}")
+        logger.debug(f"Final tensor data: {self.final_tensor[0:5, :]}")  # log first 5 entries
+
+    def save_dataset(self, output_path: str):
+        """Save the final tensor dataset to a .npy file."""
+        if self.final_tensor is not None:
+            np.save(output_path, self.final_tensor)
+            logger.info(f"Dataset saved to {output_path}")
+        else:
+            logger.warning("Final tensor is empty. Nothing to save.")
 
 if __name__ == "__main__":
     metadata_path = "./metadata.json"
