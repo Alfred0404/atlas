@@ -1,6 +1,6 @@
 import numpy as np
 from typing import List
-from mpd_parser import RawBrickData
+from MPDParser import RawBrickData
 from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
 
 
@@ -45,7 +45,7 @@ def write_mpd_file(
 
 if __name__ == "__main__":
     # Example usage with mpd_parser
-    from mpd_parser import MPDParser
+    from MPDParser import MPDParser
 
     mpd_file_path = "./mpd_files/test.mpd"
     parser = MPDParser(mpd_file_path)
