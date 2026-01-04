@@ -49,6 +49,13 @@ class DatasetBuilder:
             self.brick_vocabulary = self.map_brick_ids()
             self.color_vocabulary = self.map_brick_colors()
 
+            self.use_id_mapping(
+                {
+                    "brick_vocabulary": self.brick_vocabulary,
+                    "color_vocabulary": self.color_vocabulary,
+                }
+            )
+
             self._finalize_dataset()
 
     def center_around_origin(self):
@@ -204,17 +211,18 @@ class DatasetBuilder:
 
             self.processed_data.append(processed_brick)
         logger.debug(f"Processed {len(self.processed_data)} bricks using ID mapping.")
+        logger.debug(f"Sample quaternion brick: {self.quat_data[0]}")
         logger.debug(f"Sample processed brick: {self.processed_data[0]}")
 
         return self.processed_data
 
-    def _finalize_dataset(self):
-        """Finalize the dataset by writing the global max distance and vocabularies to metadata."""
+    def _save_global_metadata(self):
+        """Save global dataset statistics to metadata file."""
         self._update_metadata(
             self.metadata_path, "global_max_brick_distance", self.global_max_distance
         )
         logger.info(
-            f"Dataset finalized. Global max distance: {self.global_max_distance}"
+            f"Global metadata saved. Global max distance: {self.global_max_distance}"
         )
 
     def _update_global_max_distance(self, distance: float):
