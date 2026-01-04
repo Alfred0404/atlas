@@ -1,9 +1,8 @@
 # TODO
 
 - [x] add convertion from rotation matrix to quaternions *(with $q_w \geq 0$)*
+- [x] first put all sets around $(0, 0, 0)$
 - [] add normalisation to the bricks positions
-    - [x] first put all sets around $(0, 0, 0)$
-    - then divide all positions by the farthest brick of the dataset
 $$Position_{centered} = Position - Barycenter_{set}$$
 $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$
 
@@ -14,3 +13,6 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$
     - color mapping
 
 - start to think about the actual model architecture
+
+- [x] optimize centering around origin
+- [] optimize flatten method
