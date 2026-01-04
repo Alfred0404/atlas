@@ -47,10 +47,15 @@ class MPDParser:
 
     def __init__(self, mpd_file_path: str):
         self.mpd_file_path = mpd_file_path
-        self.lines: list[str] = self.read_lego_set_file() # lines of the mpd file
+        self.lines: list[str] = self.read_lego_set_file()  # lines of the mpd file
         self._registry: dict[str, list[str]] = {}  # to store the graph structure
         self.raw_data: list[RawBrickData] = []  # to store the raw data lines
-        self.quat_data: list[BrickDataQuat] = []  # to store data with quaternion rotations
+        self.quat_data: list[BrickDataQuat] = (
+            []
+        )  # to store data with quaternion rotations
+        self.max_brick_distance: float = (
+            0.0  # to store the maximum distance between bricks
+        )
 
     def read_lego_set_file(self) -> list[str]:
         """Read the content of a lego set mpd file.
@@ -60,7 +65,7 @@ class MPDParser:
             list[str]: List of lines from the mpd file.
         """
         with open(self.mpd_file_path, "r") as file:
-            self.lines = file.readlines()
+            return file.readlines()
 
     def _build_registry(self):
         """Build a registry of the mpd file structure."""
@@ -179,14 +184,12 @@ class MPDParser:
           quaternion rotation, and color.
 
         The resulting ``BrickDataQuat`` objects are appended to
-        ``self.brick_data_quat``. Existing contents of ``self.brick_data_quat``
+        ``self.quat_data``. Existing contents of ``self.quat_data``
         are preserved; this method does not clear the list beforehand.
         """
         for brick in self.raw_data:
             position = get_position_from_world_matrix(brick.world_matrix)
-            rotation_matrix = get_rotation_matrix_from_world_matrix(
-                brick.world_matrix
-            )
+            rotation_matrix = get_rotation_matrix_from_world_matrix(brick.world_matrix)
             rotation_quat = rotation_matrix_to_quaternion(rotation_matrix)
 
             brick_quat_data = BrickDataQuat(
@@ -196,6 +199,54 @@ class MPDParser:
                 color=brick.color,
             )
             self.quat_data.append(brick_quat_data)
+
+    def calculate_max_brick_distance(self):
+        """Calculate the maximum distance between a brick and the origin."""
+        max_distance_squared = 0.0
+
+        for brick in self.raw_data:
+            position = get_position_from_world_matrix(brick.world_matrix)
+            distance_squared = np.dot(
+                position, position
+            )  # squared distance from origin
+
+            if distance_squared > max_distance_squared:
+                max_distance_squared = distance_squared
+
+        self.max_brick_distance = np.sqrt(max_distance_squared)
+
+    def write_metadata(self, output_path: str, key: str, value):
+        """Write metadata including max brick distance to a JSON file.
+        Args:
+            output_path (str): Path to the output JSON file.
+        """
+
+        with open(output_path, "r+") as json_file:
+            json_data = json.load(json_file)
+            json_data[key] = value
+            json_file.seek(0)
+            json_file.truncate()
+            json.dump(json_data, json_file, indent=4)
+
+    def process_file(self, model_name: str):
+        """Process the mpd file: build registry, flatten structure, center model, and convert to quaternion representation.
+        Args:
+            model_name (str): Name of the main model to process.
+        """
+        self._build_registry()
+        self.flatten(model_name, np.eye(4))
+        self.center_around_origin()
+        self.to_quat_representation()
+        self.calculate_max_brick_distance()
+        self.write_metadata(
+            "./metadata.json", "max_brick_distance", self.max_brick_distance
+        )
+
+    def reset(self):
+        """Reset the parser state, clearing registry and data."""
+        self._registry = {}
+        self.raw_data = []
+        self.quat_data = []
 
 
 def line_to_vector(line: str) -> np.ndarray:
@@ -224,19 +275,5 @@ def line_to_vector(line: str) -> np.ndarray:
 
 if __name__ == "__main__":
     parser = MPDParser(mpd_file_path)
-    lego_set_data = parser.read_lego_set_file()
-
-    # test flattening and registry building
-    parser._build_registry()
-    logger.info("Building registry...")
-    logger.info(f"Registry built:\n{json.dumps(parser._registry, indent=2)}")
-
-    parser.flatten("4484 - Main Model.ldr\n", np.eye(4))
-    logger.info(
-        f"Flattened data:\n{[raw_brick_data for raw_brick_data in parser.raw_data]}"
-    )
-
-    parser.to_quat_representation()
-    logger.info(
-        f"Data with quaternion rotations:\n{[brick_quat_data for brick_quat_data in parser.quat_data]}"
-    )
+    parser.process_file("4484 - Main Model.ldr\n")
+    logger.info(f"Max brick distance: {parser.max_brick_distance}")
