@@ -32,6 +32,13 @@ class RawBrickData(NamedTuple):
     color: float
 
 
+class BrickDataQuat(NamedTuple):
+    brick_id: str
+    position: np.ndarray  # shape (3,) [x,y,z]
+    rotation_quat: np.ndarray  # shape (4,) [w,x,y,z]
+    color: float
+
+
 class MPDParser:
     """Parser for LEGO set mpd files.
     Args:
@@ -40,9 +47,10 @@ class MPDParser:
 
     def __init__(self, mpd_file_path: str):
         self.mpd_file_path = mpd_file_path
-        self.lines: list[str] = self.read_lego_set_file()
+        self.lines: list[str] = self.read_lego_set_file() # lines of the mpd file
         self._registry: dict[str, list[str]] = {}  # to store the graph structure
         self.raw_data: list[RawBrickData] = []  # to store the raw data lines
+        self.quat_data: list[BrickDataQuat] = []  # to store data with quaternion rotations
 
     def read_lego_set_file(self) -> list[str]:
         """Read the content of a lego set mpd file.
@@ -126,6 +134,69 @@ class MPDParser:
                     )
                     self.raw_data.append(brick_data)
 
+    def center_around_origin(self):
+        """Center the model around the origin based on the average position of all bricks."""
+        if not self.raw_data:
+            logger.warning("No raw data to center.")
+            return
+
+        # Compute average position
+        positions = np.array(
+            [
+                get_position_from_world_matrix(brick.world_matrix)
+                for brick in self.raw_data
+            ]
+        )
+        avg_position = np.mean(positions, axis=0)
+
+        logger.info(f"Centering model around origin. Average position: {avg_position}")
+
+        # Update world matrices to center around origin
+        for idx, brick in enumerate(self.raw_data):
+            translation_matrix = np.eye(4)
+            translation_matrix[:3, 3] = -avg_position
+
+            new_world_matrix = translation_matrix @ brick.world_matrix
+
+            # Update the raw_data with the new world matrix
+            self.raw_data[idx] = RawBrickData(
+                brick_id=brick.brick_id,
+                world_matrix=new_world_matrix,
+                color=brick.color,
+            )
+
+    def to_quat_representation(self):
+        """
+        Populate the quaternion-based brick representation from the current raw data.
+
+        This method iterates over all entries in ``self.raw_data``, which are expected
+        to hold 4x4 world transformation matrices. For each brick it:
+
+        * extracts the position from the world matrix,
+        * extracts the rotation matrix from the world matrix,
+        * converts the rotation matrix to a quaternion, and
+        * creates a ``BrickDataQuat`` instance containing the brick id, position,
+          quaternion rotation, and color.
+
+        The resulting ``BrickDataQuat`` objects are appended to
+        ``self.brick_data_quat``. Existing contents of ``self.brick_data_quat``
+        are preserved; this method does not clear the list beforehand.
+        """
+        for brick in self.raw_data:
+            position = get_position_from_world_matrix(brick.world_matrix)
+            rotation_matrix = get_rotation_matrix_from_world_matrix(
+                brick.world_matrix
+            )
+            rotation_quat = rotation_matrix_to_quaternion(rotation_matrix)
+
+            brick_quat_data = BrickDataQuat(
+                brick_id=brick.brick_id,
+                position=position,
+                rotation_quat=rotation_quat,
+                color=brick.color,
+            )
+            self.quat_data.append(brick_quat_data)
+
 
 def line_to_vector(line: str) -> np.ndarray:
     """Convert a line from the mpd file to a vector of floats.
@@ -161,11 +232,11 @@ if __name__ == "__main__":
     logger.info(f"Registry built:\n{json.dumps(parser._registry, indent=2)}")
 
     parser.flatten("4484 - Main Model.ldr\n", np.eye(4))
-    # print(parser.raw_data)
     logger.info(
         f"Flattened data:\n{[raw_brick_data for raw_brick_data in parser.raw_data]}"
     )
 
-    # logger.info(lego_set_data)
-    # vector = line_to_vector("1 71 0 0 0 0 0 -1 0 -1 0 -1 0 0 32324.dat")
-    # logger.info(f"Final vector: {vector}\nVector shape: {vector.shape}")
+    parser.to_quat_representation()
+    logger.info(
+        f"Data with quaternion rotations:\n{[brick_quat_data for brick_quat_data in parser.quat_data]}"
+    )

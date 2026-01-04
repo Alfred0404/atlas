@@ -52,6 +52,7 @@ if __name__ == "__main__":
     parser.read_lego_set_file()
     parser._build_registry()
     parser.flatten("4484 - Main Model.ldr\n", np.eye(4))
+    parser.center_around_origin()
 
     # Write the flattened model to a new MPD file
     output_path = "./mpd_files/output.mpd"
