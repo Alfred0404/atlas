@@ -15,6 +15,7 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$
 
 - [x] split responsibility between dataset builder and mpd parser
 - [x] optimize centering around origin
+- [x] finish the parser and the dataset builder
 - [] optimize flatten method
 
 - start to think about the actual model architecture

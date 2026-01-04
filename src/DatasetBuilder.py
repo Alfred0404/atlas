@@ -1,12 +1,14 @@
-from MPDParser import MPDParser, RawBrickData, BrickDataQuat, ProcessedBrickData
-from rotation_matrix_to_quaternion import rotation_matrix_to_quaternion
-from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
 import numpy as np
 from pathlib import Path
-import json
 import logging
-from config import LOGGING_LEVEL
+import json
+
+from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
+from MPDParser import MPDParser, RawBrickData, BrickDataQuat, ProcessedBrickData
+from rotation_matrix_to_quaternion import rotation_matrix_to_quaternion
 from formating.customFormatter import CustomFormatter
+
+from config import LOGGING_LEVEL, RAW_DATASET_DIR, PARSED_DATASET_DIR
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -16,7 +18,8 @@ ch.setLevel(LOGGING_LEVEL)
 ch.setFormatter(CustomFormatter())
 logger.addHandler(ch)
 
-mpd_file_dir = "./mpd_files/dataset/"
+raw_dataset_dir = RAW_DATASET_DIR
+parsed_dataset_dir = PARSED_DATASET_DIR
 
 
 class DatasetBuilder:
@@ -34,7 +37,7 @@ class DatasetBuilder:
 
     def process_dataset(self):
 
-        for mpd_file in Path(mpd_file_dir).glob("*.mpd"):
+        for mpd_file in Path(raw_dataset_dir).glob("*.mpd"):
             # parse mpd file
             parser = MPDParser(str(mpd_file))
             logger.debug(parser._submodels)
@@ -59,7 +62,7 @@ class DatasetBuilder:
 
             self._save_global_metadata()
             self._to_tensor()
-            self.save_dataset(output_path=f"./processed_sets/{mpd_file.stem}.npy")
+            self.save_dataset(output_path=f"{parsed_dataset_dir}{mpd_file.stem}.npy")
 
     def center_around_origin(self):
         """Center the model around the origin based on the average position of all bricks."""
