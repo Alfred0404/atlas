@@ -1,6 +1,6 @@
-# LORD *(Lego Oriented Recursive Diffusion)*
+# ATLAS *(Autoregressive Transformer Lego Assembly Synthesis)*
 
-This project aim to generate coherent and mecanically plausible Lego sets with a conditionned diffusion model, by treating sets as semantic points clouds.
+This project aim to generate coherent and mecanically plausible Lego sets using an autoregressive transformer architecture, predicting the next brick based on the previous ones.
 
 ## Data representation
 
@@ -30,12 +30,7 @@ The architecture is based on a backbone able to capture local and global geometr
 
 ### Key Components
 
-1. **3D Relative Positional Encoding (RPE)**
-    Essential for injecting the notion of proximity. Attention is weighted by relative distance, simulating the probability of mechanical connectivity.
-2. **Input Segmentor**
-    Router separating IDs (for embeddings) from spatial coordinates (for linear projections).
-3. **Mixed-Type Diffusion Head**
-    Gaussian Diffusion for geometry and Discrete Diffusion (D3PM) for part types.
+
 
 
 ### Parsing
@@ -115,11 +110,11 @@ To a vector in this form
 
 [Bricks list](https://library.ldraw.org/parts/list)
 [LDraw Colors](https://www.ldraw.org/article/547.html)
-https://www.johndcook.com/blog/2025/05/07/quaternions-and-rotation-matrices/
-https://www.guandaoyang.com/PointFlow/
-https://arxiv.org/pdf/1906.12320
-https://github.com/openai/point-e/tree/main
-https://www.youtube.com/watch?v=EhndHhIvWWw&list=WL&index=17
-https://www.reddit.com/r/gamedev/comments/ffo8gg/quaternions_basics_for_3d_rotation_pt_1/
-https://eater.net/quaternions/
-https://docs.scipy.org/doc/scipy-1.16.1/reference/generated/scipy.spatial.transform.Rotation.as_quat.html
+[Quaternions and rotation matrix](https://www.johndcook.com/blog/2025/05/07/quaternions-and-rotation-matrices/)
+[PointFlow (3D point cloud generation)](https://www.guandaoyang.com/PointFlow/)
+[OpeneAI - Point-E](https://github.com/openai/point-e/tree/main)
+[DDPM Video](https://www.youtube.com/watch?v=EhndHhIvWWw&list=WL&index=17)
+[Quaternion explanations](https://www.reddit.com/r/gamedev/comments/ffo8gg/quaternions_basics_for_3d_rotation_pt_1/)
+[Quaternions sandbox](https://eater.net/quaternions/)
+[Scipy.as_quat](https://docs.scipy.org/doc/scipy-1.16.1/reference/generated/scipy.spatial.transform.Rotation.as_quat.html)
+[Point cloud search on hf](https://huggingface.co/models?search=point%20cloud)

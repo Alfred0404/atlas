@@ -19,3 +19,9 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$
 - [] optimize flatten method
 
 - start to think about the actual model architecture
+
+- transformer architecture (predict the next brick based on all the previous ones)
+    - [point gpt](https://github.com/CGuangyan-BIT/PointGPT)
+    - [Set Transformer](https://arxiv.org/pdf/1810.00825)
+    - sort all the bricks in a deterministic way (so the model learn 'syntax')
+    - separate continuous and discrete components
