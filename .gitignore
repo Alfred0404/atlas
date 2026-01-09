@@ -48,3 +48,9 @@ venv.bak/
 # .vscode/
 *.pth
 checkpoints/
+
+#lego files
+*.mpd
+*.ldr
+*.dat
+*.npy

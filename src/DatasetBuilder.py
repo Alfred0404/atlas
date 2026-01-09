@@ -41,6 +41,9 @@ class DatasetBuilder:
             # parse mpd file
             parser = MPDParser(str(mpd_file))
             logger.debug(parser._submodels)
+            if not parser._submodels:
+                logger.warning(f"No submodels found in {mpd_file}. Skipping file.")
+                continue
             first_submodel_key = list(parser._submodels.keys())[0]
             self.raw_data = parser.flatten(first_submodel_key, np.eye(4))
             logger.info(f"Processing {mpd_file} with {len(self.raw_data)} bricks.")

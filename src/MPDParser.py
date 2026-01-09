@@ -188,10 +188,11 @@ def line_to_vector(line: str) -> np.ndarray:
     # Remove the first character
     line = line.split(" ", 1)[1].strip()
     # extract all components
-    line_vec = [field for field in line.split()]
+    line_vec = [field for field in line.split(maxsplit=13)]
     # get only the brick id (last element) without the .dat extension : "32324.dat" -> "32324" or "2412b.dat" -> "2412b"
     brick_id = line_vec[-1].split(".")[0]
     # convert numeric values to float
+    logger.debug(f"Parsing line for brick ID: {brick_id}")
     numeric_values = np.array([float(val) for val in line_vec[:-1]])
 
     return numeric_values, brick_id
