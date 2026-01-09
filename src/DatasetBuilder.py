@@ -40,18 +40,21 @@ class DatasetBuilder:
         for mpd_file in Path(raw_dataset_dir).glob("*.mpd"):
             # parse mpd file
             parser = MPDParser(str(mpd_file))
-            logger.debug(parser._submodels)
+
+            logger.info(f"Processing {mpd_file} with {len(self.raw_data)} bricks.")
+            logger.debug(f"submodels: {parser._submodels}")
+
             if not parser._submodels:
                 logger.warning(f"No submodels found in {mpd_file}. Skipping file.")
                 continue
+
             first_submodel_key = list(parser._submodels.keys())[0]
             self.raw_data = parser.flatten(first_submodel_key, np.eye(4))
-            logger.info(f"Processing {mpd_file} with {len(self.raw_data)} bricks.")
 
             # Transform data
             self.center_around_origin()
             self.to_quat_representation()
-            self.calculate_max_brick_distance()
+            # self.calculate_max_brick_distance() not needed because we use transformer architecture instead of diffusion
 
             self.brick_vocabulary = self.map_brick_ids()
             self.color_vocabulary = self.map_brick_colors()
@@ -180,25 +183,48 @@ class DatasetBuilder:
         logger.debug(f"Mapped {len(unique_colors)} unique colors to integers.")
         return color_to_idx
 
-    def _update_metadata(self, output_path: str, key: str, value: dict):
-        """Update or add a key-value pair in the metadata JSON file.
-        Args:
-        output_path (str): Path to the metadata JSON file.
-        key (str): The key to update or add.
-        value (dict): The value to set for the key.
+    def _update_metadata(self, output_path: str, key: str, new_items: list):
         """
-        try:
-            with open(output_path, "r+") as json_file:
-                json_data = json.load(json_file)
-                json_data[key] = value
-                json_file.seek(0)
-                json_file.truncate()
-                json.dump(json_data, json_file, indent=4)
+        Add new items to a vocabulary category ensuring
+        unique and increasing integer IDs.
+        Args:
+            output_path (str): Path to the metadata JSON file.
+            key (str): The category key in the JSON (e.g., "brick_vocabulary").
+            new_items (list): List of new items to add to the category.
+        """
+        json_data = {}
 
-        except FileNotFoundError:
-            # Create new file if it doesn't exist
-            with open(output_path, "w") as json_file:
-                json.dump({key: value}, json_file, indent=4)
+        # load existing data
+        try:
+            with open(output_path, "r", encoding="utf-8") as f:
+                json_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            json_data = {}
+
+        # add new category if not present
+        if key not in json_data:
+            json_data[key] = {}
+
+        category_dict = json_data[key]
+
+        # add new items with unique IDs
+        # check for existing IDs and find the max
+        current_ids = list(category_dict.values())
+        next_id = max(current_ids) + 1 if current_ids else 0
+
+        # add new items
+        changes_made = False
+        for item in new_items:
+            item_str = str(item)
+            if item_str not in category_dict:
+                category_dict[item_str] = next_id
+                next_id += 1
+                changes_made = True
+
+        # write back only if changes were made
+        if changes_made:
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(json_data, f, indent=4, sort_keys=True)
 
     def use_id_mapping(self, id_mapping: dict):
         """Fill processed_data using a provided brick and color ID mapping."""
@@ -227,11 +253,19 @@ class DatasetBuilder:
 
     def _save_global_metadata(self):
         """Save global dataset statistics to metadata file."""
+        # self._update_metadata(
+        #     self.metadata_path, "global_max_brick_distance", self.global_max_distance
+        # )
         self._update_metadata(
-            self.metadata_path, "global_max_brick_distance", self.global_max_distance
+            self.metadata_path, "brick_vocabulary", self.brick_vocabulary
+        )
+        self._update_metadata(
+            self.metadata_path, "color_vocabulary", self.color_vocabulary
         )
         logger.info(
-            f"Global metadata saved. Global max distance: {self.global_max_distance}"
+            # f"Global metadata saved. Global max distance: {self.global_max_distance}, "
+            f"Brick vocabulary size: {len(self.brick_vocabulary)}, "
+            f"Color vocabulary size: {len(self.color_vocabulary)}"
         )
 
     def _update_global_max_distance(self, distance: float):
@@ -282,10 +316,14 @@ class DatasetBuilder:
             if self.final_tensor is None:
                 self.final_tensor = brick_tensor[np.newaxis, :]
             else:
-                self.final_tensor = np.vstack((self.final_tensor, brick_tensor[np.newaxis, :]))
+                self.final_tensor = np.vstack(
+                    (self.final_tensor, brick_tensor[np.newaxis, :])
+                )
 
         logger.info(f"Final tensor shape: {self.final_tensor.shape}")
-        logger.debug(f"Final tensor data: {self.final_tensor[0:5, :]}")  # log first 5 entries
+        logger.debug(
+            f"Final tensor data: {self.final_tensor[0:5, :]}"
+        )  # log first 5 entries
 
     def save_dataset(self, output_path: str):
         """Save the final tensor dataset to a .npy file."""
@@ -294,6 +332,7 @@ class DatasetBuilder:
             logger.info(f"Dataset saved to {output_path}")
         else:
             logger.warning("Final tensor is empty. Nothing to save.")
+
 
 if __name__ == "__main__":
     metadata_path = "./metadata.json"
