@@ -8,7 +8,7 @@ from MPDParser import MPDParser, RawBrickData, BrickDataQuat, ProcessedBrickData
 from rotation_matrix_to_quaternion import rotation_matrix_to_quaternion
 from formating.customFormatter import CustomFormatter
 
-from config import LOGGING_LEVEL, RAW_DATASET_DIR, PARSED_DATASET_DIR
+from config import LOGGING_LEVEL, RAW_DATASET_DIR, PARSED_DATASET_DIR, METADATA_PATH
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -50,6 +50,7 @@ class DatasetBuilder:
 
             first_submodel_key = list(parser._submodels.keys())[0]
             self.raw_data = parser.flatten(first_submodel_key, np.eye(4))
+            self.raw_data = parser.sort_bricks_by_position()
 
             # Transform data
             self.center_around_origin()
@@ -335,6 +336,5 @@ class DatasetBuilder:
 
 
 if __name__ == "__main__":
-    metadata_path = "./metadata.json"
-    dataset_builder = DatasetBuilder(metadata_path)
+    dataset_builder = DatasetBuilder(METADATA_PATH)
     dataset_builder.process_dataset()

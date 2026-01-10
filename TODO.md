@@ -18,11 +18,26 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$
 - [x] finish the parser and the dataset builder
 - [] optimize flatten method
 
-- start to think about the actual model architecture
+- [x] start to think about the actual model architecture
 
 - transformer architecture (predict the next brick based on all the previous ones)
     - [point gpt](https://github.com/CGuangyan-BIT/PointGPT)
     - [Set Transformer](https://arxiv.org/pdf/1810.00825)
 
-    - sort all the bricks in a deterministic way (so the model learn 'syntax')
-    - 
+    - [x] sort all the bricks in a deterministic way (so the model learn 'syntax')
+    - fix the vocab
+        - create special tokens ([SOS], [EOS], [PAD], etc.) and map them to idx
+        - maps idx to the most frequent rotations (0, 90, 180, etc. on all 3 axes xyz)
+        - map all known brick ids to vocab idx
+        - map all known colors ids to vocab idx
+        - map x, y and z positions to bins idx
+
+- Tokenizer
+    - Encoder
+        - replace true values by their corresponding idx in the vocab
+        - "flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$
+    - Decoder
+        - group tokens by blocs of 6 (group them by bricks)
+        - de-binning (from bin idx to real position)
+        - snapping positions to the real grid
+        - reconstruct an output `.mpd` file, ready to be displayed in LDView

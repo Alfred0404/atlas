@@ -172,6 +172,15 @@ class MPDParser:
         """
         np.save(output_path, self.raw_data)
 
+    def sort_bricks_by_position(self):
+        """Sort the raw_data bricks by their position (x, y, z)., first by Y then X then Z. (y is up)"""
+        self.raw_data.sort(key=lambda brick: (
+            brick.world_matrix[1, 3],  # Y position
+            brick.world_matrix[0, 3],  # X position
+            brick.world_matrix[2, 3]   # Z position
+        ))
+        return self.raw_data
+
 
 def line_to_vector(line: str) -> np.ndarray:
     """Convert a line from the mpd file to a vector of floats.
