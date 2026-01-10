@@ -26,8 +26,9 @@ class DatasetBuilder:
     def __init__(self, metadata_path: str):
         self.metadata_path = metadata_path
         self.global_max_distance = 0.0
-        self.brick_vocabulary = {}
-        self.color_vocabulary = {}
+        self.vocabulary = {"[SOS]": 0, "[EOS]": 1, "[PAD]": 2, "[UNK]": 3}
+        self.all_brick_ids = set()  # Collect all unique brick IDs
+        self.all_colors = set()  # Collect all unique colors
 
         # Data storage for processing individual files
         self.raw_data: list[RawBrickData] = []
@@ -57,19 +58,25 @@ class DatasetBuilder:
             self.to_quat_representation()
             # self.calculate_max_brick_distance() not needed because we use transformer architecture instead of diffusion
 
-            self.brick_vocabulary = self.map_brick_ids()
-            self.color_vocabulary = self.map_brick_colors()
+            # Collect unique brick IDs and colors from this file
+            new_brick_ids = self.collect_brick_ids()
+            new_colors = self.collect_brick_colors()
 
-            self.use_id_mapping(
-                {
-                    "brick_vocabulary": self.brick_vocabulary,
-                    "color_vocabulary": self.color_vocabulary,
-                }
-            )
+            # Add to global sets
+            self.all_brick_ids.update(new_brick_ids)
+            self.all_colors.update(new_colors)
 
-            self._save_global_metadata()
-            self._to_tensor()
-            self.save_dataset(output_path=f"{parsed_dataset_dir}{mpd_file.stem}.npy")
+            # self._to_tensor()
+            # self.save_dataset(output_path=f"{parsed_dataset_dir}{mpd_file.stem}.npy")
+
+        # Build unified vocabulary: special tokens (0-3), then all bricks, then all colors
+        self.build_unified_vocabulary()
+
+        logger.info("Dataset processing complete.")
+        logger.info(
+            f"Final vocabulary size: {len(self.vocabulary)} (Bricks: {len(self.all_brick_ids)}, Colors: {len(self.all_colors)}, Special tokens: 4)"
+        )
+        self.save_vocabulary()
 
     def center_around_origin(self):
         """Center the model around the origin based on the average position of all bricks."""
@@ -146,48 +153,68 @@ class DatasetBuilder:
 
         return max_distance
 
-    def map_brick_ids(self):
-        """Map bricks IDs to unique integers, and store the mapping in metadata.json."""
+    def collect_brick_ids(self):
+        """Collect unique brick IDs from current quaternion data."""
         if not self.quat_data:
-            logger.warning("No quaternion data to map brick IDs.")
-            return
+            logger.warning("No quaternion data to collect brick IDs.")
+            return set()
 
         # Get unique brick IDs
-        unique_brick_ids = sorted(set(brick.brick_id for brick in self.quat_data))
+        unique_brick_ids = set(brick.brick_id for brick in self.quat_data)
+        logger.debug(
+            f"Collected {len(unique_brick_ids)} unique brick IDs from current file."
+        )
+        return unique_brick_ids
 
-        # Create mapping from brick_id to integer index
-        brick_id_to_idx = {
-            brick_id: idx for idx, brick_id in enumerate(unique_brick_ids)
-        }
-
-        # Write mapping to metadata.json
-        self._update_metadata(self.metadata_path, "brick_vocabulary", brick_id_to_idx)
-
-        logger.debug(f"Mapped {len(unique_brick_ids)} unique brick IDs to integers.")
-        return brick_id_to_idx
-
-    def map_brick_colors(self):
-        """Map brick colors to unique integers, and store the mapping in metadata.json."""
+    def collect_brick_colors(self):
+        """Collect unique brick colors from current quaternion data."""
         if not self.quat_data:
-            logger.warning("No quaternion data to map brick colors.")
-            return
+            logger.warning("No quaternion data to collect brick colors.")
+            return set()
 
         # Get unique colors
-        unique_colors = sorted(set(brick.color for brick in self.quat_data))
+        unique_colors = set(brick.color for brick in self.quat_data)
+        logger.debug(f"Collected {len(unique_colors)} unique colors from current file.")
+        return unique_colors
 
-        # Create mapping from color to integer index
-        color_to_idx = {color: idx for idx, color in enumerate(unique_colors)}
+    def build_unified_vocabulary(self):
+        """Build unified vocabulary with all bricks first, then all colors.
 
-        # Write mapping to metadata.json
-        self._update_metadata(self.metadata_path, "color_vocabulary", color_to_idx)
+        Vocabulary structure:
+        - Indices 0-3: Special tokens ([SOS], [EOS], [PAD], [UNK])
+        - Indices 4+: All brick IDs (sorted)
+        - Indices after bricks: All colors (sorted)
+        """
+        # Start indexing after special tokens
+        current_index = 4
 
-        logger.debug(f"Mapped {len(unique_colors)} unique colors to integers.")
-        return color_to_idx
+        # Add all brick IDs (sorted for consistency)
+        sorted_brick_ids = sorted(self.all_brick_ids)
+        for brick_id in sorted_brick_ids:
+            self.vocabulary[brick_id] = current_index
+            current_index += 1
 
-    def _update_metadata(self, output_path: str, key: str, new_items: list):
+        logger.info(
+            f"Added {len(sorted_brick_ids)} bricks to vocabulary (indices 4-{current_index-1})"
+        )
+
+        # Add all colors (sorted for consistency)
+        sorted_colors = sorted(self.all_colors)
+        for color in sorted_colors:
+            color_key = f"color_{color}"
+            self.vocabulary[color_key] = current_index
+            current_index += 1
+
+        logger.info(
+            f"Added {len(sorted_colors)} colors to vocabulary (indices {current_index-len(sorted_colors)}-{current_index-1})"
+        )
+        logger.debug(f"Sample vocabulary entries: {list(self.vocabulary.items())[:10]}")
+
+    def update_json(self, output_path: str, key: str, new_items: list):
         """
         Add new items to a vocabulary category ensuring
         unique and increasing integer IDs.
+
         Args:
             output_path (str): Path to the metadata JSON file.
             key (str): The category key in the JSON (e.g., "brick_vocabulary").
@@ -199,6 +226,7 @@ class DatasetBuilder:
         try:
             with open(output_path, "r", encoding="utf-8") as f:
                 json_data = json.load(f)
+
         except (FileNotFoundError, json.JSONDecodeError):
             json_data = {}
 
@@ -228,15 +256,21 @@ class DatasetBuilder:
                 json.dump(json_data, f, indent=4, sort_keys=True)
 
     def use_id_mapping(self, id_mapping: dict):
-        """Fill processed_data using a provided brick and color ID mapping."""
+        """Fill processed_data using a provided unified vocabulary mapping."""
         if not self.quat_data:
             logger.warning("No quaternion data to process.")
             return
 
         self.processed_data = []  # Clear previous data
+        vocabulary = id_mapping.get("vocabulary", {})
+
         for brick in self.quat_data:
-            brick_idx = id_mapping["brick_vocabulary"].get(brick.brick_id, -1)
-            color_idx = id_mapping["color_vocabulary"].get(brick.color, -1)
+            brick_idx = vocabulary.get(
+                brick.brick_id, 3
+            )  # Use [UNK] token (3) if not found
+            color_idx = vocabulary.get(
+                f"color_{brick.color}", 3
+            )  # Use [UNK] token (3) if not found
 
             processed_brick = ProcessedBrickData(
                 brick_idx=brick_idx,
@@ -252,21 +286,15 @@ class DatasetBuilder:
 
         return self.processed_data
 
-    def _save_global_metadata(self):
-        """Save global dataset statistics to metadata file."""
-        # self._update_metadata(
-        #     self.metadata_path, "global_max_brick_distance", self.global_max_distance
-        # )
-        self._update_metadata(
-            self.metadata_path, "brick_vocabulary", self.brick_vocabulary
-        )
-        self._update_metadata(
-            self.metadata_path, "color_vocabulary", self.color_vocabulary
-        )
+    def save_vocabulary(self):
+        """Save unified vocabulary to metadata file."""
+        vocab_data = {"vocabulary": self.vocabulary}
+
+        with open(self.metadata_path, "w", encoding="utf-8") as f:
+            json.dump(vocab_data, f, indent=4, sort_keys=True)
+
         logger.info(
-            # f"Global metadata saved. Global max distance: {self.global_max_distance}, "
-            f"Brick vocabulary size: {len(self.brick_vocabulary)}, "
-            f"Color vocabulary size: {len(self.color_vocabulary)}"
+            f"Vocabulary saved to {self.metadata_path} with {len(self.vocabulary)} total entries"
         )
 
     def _update_global_max_distance(self, distance: float):
@@ -275,19 +303,19 @@ class DatasetBuilder:
             self.global_max_distance = distance
             logger.debug(f"Updated global max distance to: {distance}")
 
-    def _update_brick_vocabulary(self, brick_id: str):
-        """Update brick vocabulary with a new brick ID."""
-        if brick_id not in self.brick_vocabulary:
-            idx = len(self.brick_vocabulary)
-            self.brick_vocabulary[brick_id] = idx
-            logger.debug(f"Added brick {brick_id} to vocabulary at index {idx}")
+    # def _update_brick_vocabulary(self, brick_id: str):
+    #     """Update brick vocabulary with a new brick ID."""
+    #     if brick_id not in self.brick_vocabulary:
+    #         idx = len(self.brick_vocabulary)
+    #         self.brick_vocabulary[brick_id] = idx
+    #         logger.debug(f"Added brick {brick_id} to vocabulary at index {idx}")
 
-    def _update_color_vocabulary(self, color: int):
-        """Update color vocabulary with a new color."""
-        if color not in self.color_vocabulary:
-            idx = len(self.color_vocabulary)
-            self.color_vocabulary[color] = idx
-            logger.debug(f"Added color {color} to vocabulary at index {idx}")
+    # def _update_color_vocabulary(self, color: int):
+    #     """Update color vocabulary with a new color."""
+    #     if color not in self.color_vocabulary:
+    #         idx = len(self.color_vocabulary)
+    #         self.color_vocabulary[color] = idx
+    #         logger.debug(f"Added color {color} to vocabulary at index {idx}")
 
     def to_quaternion(self, rotation_matrix: np.ndarray) -> np.ndarray:
         """Convert a rotation matrix to a quaternion.

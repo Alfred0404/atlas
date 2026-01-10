@@ -1,43 +1,43 @@
 # TODO
 
-- [x] add convertion from rotation matrix to quaternions *(with $q_w \geq 0$)*
+- [x] add convertion from rotation matrix to quaternions _(with $q_w \geq 0$)_
 - [x] first put all sets around $(0, 0, 0)$
-- [] add normalisation to the bricks positions
+<!-- - [] add normalisation to the bricks positions
 $$Position_{centered} = Position - Barycenter_{set}$$
-$$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$
+$$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
 
-- maybe pass the wanted scale during inference to help the model *(later)*
-- create `metadata.json` to store:
-    - [x] the scale so the model is able to multiply the normalised generated positions to their actual full size position
-    - the brick mapping, the "vocabulary" of the model, with top-k bricks (`index_to_id` and `id_to_index`)
-    - color mapping
-
-
-- [x] split responsibility between dataset builder and mpd parser
+- [x] split responsibility between DatasetBuilder and MPDParser
 - [x] optimize centering around origin
-- [x] finish the parser and the dataset builder
+- [x] finish the MPDParser and the DatasetBuilder
+- [x] start to think about the actual model architecture
 - [] optimize flatten method
 
-- [x] start to think about the actual model architecture
+## Transformer architecture (predict the next brick based on all the previous ones)
 
-- transformer architecture (predict the next brick based on all the previous ones)
-    - [point gpt](https://github.com/CGuangyan-BIT/PointGPT)
-    - [Set Transformer](https://arxiv.org/pdf/1810.00825)
+- [point gpt](https://github.com/CGuangyan-BIT/PointGPT)
+- [Set Transformer](https://arxiv.org/pdf/1810.00825)
 
-    - [x] sort all the bricks in a deterministic way (so the model learn 'syntax')
-    - fix the vocab
-        - create special tokens ([SOS], [EOS], [PAD], etc.) and map them to idx
-        - maps idx to the most frequent rotations (0, 90, 180, etc. on all 3 axes xyz)
-        - map all known brick ids to vocab idx
-        - map all known colors ids to vocab idx
-        - map x, y and z positions to bins idx
+- [x] sort all the bricks in a deterministic way (so the model learn 'syntax')
+- fix the vocab
 
-- Tokenizer
-    - Encoder
-        - replace true values by their corresponding idx in the vocab
-        - "flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$
-    - Decoder
-        - group tokens by blocs of 6 (group them by bricks)
-        - de-binning (from bin idx to real position)
-        - snapping positions to the real grid
-        - reconstruct an output `.mpd` file, ready to be displayed in LDView
+  - [x] create special tokens ([SOS], [EOS], [PAD], etc.) and map them to idx
+  - maps idx to the most frequent rotations (0, 90, 180, etc. on all 3 axes xyz)
+  - [x] map all known brick ids to vocab idx
+  - [x] map all known colors ids to vocab idx
+  - map x, y and z positions to bins idx
+
+  So the vocab is : tokens first (0->3), then all the known brick_ids, then all y bins (512), then all the x bins (512), then all the z bins (512), then all the rotation idx (24), then all the known colors
+
+## Tokenizer
+
+### Encoder
+
+    - replace true values by their corresponding idx in the vocab *(tokenize the dataset)*
+    - "flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones
+
+### Decoder
+
+    - group tokens by blocs of 6 *(group them by bricks)*
+    - de-binning (from bin idx to real position)
+    - snapping positions to the real grid
+    - reconstruct an output `.mpd` file, ready to be displayed in LDView

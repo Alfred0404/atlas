@@ -1,4 +1,4 @@
-# ATLAS *(Autoregressive Transformer Lego Assembly Synthesis)*
+# ATLAS _(Autoregressive Transformer Lego Assembly Synthesis)_
 
 This project aim to generate coherent and mecanically plausible Lego sets using an autoregressive transformer architecture, predicting the next brick based on the previous ones.
 
@@ -12,15 +12,14 @@ Each brick $i$ is a vector :
 
 $$X_i = [ID_{part}, x, y, z, q_w, q_x, q_y, q_z, color]$$
 
-| Component          | Nature      | Processing                                              |
-| :----------------- | :---------- | :------------------------------------------------------ |
-| **ID_part**        | Discrete    | **Pre-trained embedding** *(via Rebrickable catalog)*  |
-| **x, y, z**        | Continuous  | Normalized coordinates $[-1, 1]$                        |
-| **qw, qx, qy, qz** | Continuous  | **Unit quaternions** (with constraint $q_w \ge 0$) |
-| **color**          | Discrete    | Color embedding                                         |
+| Component          | Nature     | Processing                                              |
+| :----------------- | :--------- | :------------------------------------------------------ |
+| **ID_part**        | Discrete   | Mapped to unique index in vocabulary (4 to N_bricks+3)  |
+| **x, y, z**        | Continuous | Normalized coordinates $[-1, 1]$                        |
+| **qw, qx, qy, qz** | Continuous | **Unit quaternions** (with constraint $q_w \ge 0$)      |
+| **color**          | Discrete   | Mapped to unique index in vocabulary (after all bricks) |
 
-**Global Structure** : $(N_{max}, 9)$ Vector, where line order has no importance *(invariance by permutation)*
-
+**Global Structure** : $(N_{max}, 9)$ Vector, where line order has no importance _(invariance by permutation)_
 
 ## Model Architecture
 
@@ -30,81 +29,93 @@ The architecture is based on a backbone able to capture local and global geometr
 
 ### Key Components
 
+**MPDParser**
 
+- parse a given `.mpd` file to get a flat list of bricks variables _(RawDataBricks named tuple)_
 
+**DatasetBuilder**
+
+- use MPDParser on every `.mpd` file of the dataset _(from a given directory)_ and apply some basic transformations, such as rotation matrix to quaternions conversion, and centering around origin
+- create a unified token vocabulary with:
+  - **Special tokens** at indices 0-3: `[SOS]`, `[EOS]`, `[PAD]`, `[UNK]`
+  - **All brick IDs** starting at index 4 (sorted alphabetically)
+  - **All colors** following the bricks (prefixed with `color_`, sorted numerically)
+- save the vocabulary to `vocab.json` as a single flat dictionary with unique indices for all entries
 
 ### Parsing
 
-Lego sets are store in `.mpd` files, as recursive scene graphs. A set is describe as multiple subsets, also described as sub-subsets, and so on to simple bricks.
+Lego sets are stored in `.mpd` files, as recursive scene graphs. A set is described as multiple subsets, also described as sub-subsets, and so on to simple bricks.
 
-So in order to get clean data from a `.mpd` file, we need to flatten it to get the position and orientation of each bricks composing the set.
+So in order to get clean data from a `.mpd` file, we need to flatten it to get the position and orientation of each brick composing the set.
 
 1. **Hierarchy Flattening:**
-    Recursive resolution. Sub-sets are integrated by applying parent transformation matrices to obtain absolute world coordinates.
+   Recursive resolution. Sub-sets are integrated by applying parent transformation matrices to obtain absolute world coordinates.
 2. **Quaternion Conversion:**
-    The $3 \times 3$ rotation matrices from the source file *(type 1 lines)* are converted to quaternions to avoid numerical instabilities and to big vectors.
-3. **Filtering:**
-    Limitation to **Top-K** *(e.g., 500)* most frequent parts to ensure classification convergence (`part_id`).
-4. **Normalization:**
-    Point cloud centering to stabilize training.
+   The $3 \times 3$ rotation matrices from the source file _(type 1 lines)_ are converted to quaternions to avoid numerical instabilities and to reduce vector dimensionality.
+3. **Centering:**
+   Point cloud centering around the origin (barycenter) to stabilize training.
+4. **Vocabulary Building:**
+   - Collect all unique brick IDs and colors from all `.mpd` files in the dataset
+   - Build a unified vocabulary with unique indices:
+     - Indices 0-3: Special tokens (`[SOS]`, `[EOS]`, `[PAD]`, `[UNK]`)
+     - Indices 4+: All brick IDs (sorted alphabetically)
+     - Following indices: All colors prefixed with `color_` (sorted numerically)
+   - Save to `vocab.json` as a single flat dictionary
 
-The goal of this part is to go from a line like this :
+The goal of this part is to go from a line like this:
 
 `1 71 0 0 0 1 0 0 0 1 0 0 0 1 3028.dat`
 
-To a vector in this form
+To a vector in this form:
 
-`[3028, 0, 0, 0, q_w, q_x, q_y, q_z, 71]`
+`[brick_idx, x, y, z, q_w, q_x, q_y, q_z, color_idx]`
 
+Where `brick_idx` is the vocabulary index for brick ID `3028`, and `color_idx` is the vocabulary index for `color_71`.
 
 ## Research & Learning Directions
 
 ### 1. Algorithmic Geometry & LDraw Standard
 
 - **Recursive Transformation Computation:**
-    Master the accumulation of transformation matrices (World Matrices) to "flatten" `.mpd` files that nest sub-models (`FILE ... .ldr`).
+  Master the accumulation of transformation matrices (World Matrices) to "flatten" `.mpd` files that nest sub-models (`FILE ... .ldr`).
 - **Quaternion Algebra:**
-    Study the conversion of 3×3 rotation matrices from source files to unit quaternions and handling "double coverage" (enforce qw ≥ 0).
+  Study the conversion of 3×3 rotation matrices from source files to unit quaternions and handling "double coverage" (enforce qw ≥ 0).
 - **LDraw Units (LDU):**
-    Understand the specific coordinate system (Y pointing down) and discrete grid for future snapping post-processing.
+  Understand the specific coordinate system (Y pointing down) and discrete grid for future snapping post-processing.
 
-### 2. Deep Learning Architectures for Point Clouds
+### 2. Vocabulary & Token Representation
+
+- **Unified Vocabulary Design:**
+  Understanding how to build a flat, collision-free vocabulary that maps both discrete elements (brick IDs, colors) and continuous elements (positions, rotations) to unique indices.
+- **Token Embeddings:**
+  How to represent discrete tokens (bricks, colors) as learnable embeddings so the model can understand structural relationships between similar parts.
+- **Special Tokens:**
+  Usage of `[SOS]`, `[EOS]`, `[PAD]`, and `[UNK]` tokens for sequence modeling and handling unknown elements.
+
+### 3. Deep Learning Architectures for Point Clouds
 
 - **Point Transformers:**
-    Study the attention mechanism applied to unordered point sets (permutation invariance).
-- **Relative Positional Encoding (RPE):**
-    Learn to inject relative distance between parts into attention layers so the model "feels" physical proximity.
-- **Graph Neural Networks (GNN):**
-    Research dynamic graph construction (k-NN) to model immediate neighborhood relationships between bricks.
-
-### 3. Generative Models: Hybrid Diffusion
-
-- **Gaussian Diffusion (DDPM/DDIM):**
-    Standard for generating continuous variables in the vector *(positions x, y, z and quaternions)*.
-- **Discrete Diffusion (D3PM):**
-    Research on multinomial diffusion models to handle categorical variables like part IDs (e.g., `3028.dat`, `3002.dat`) and colors present in the dataset.
-- **Classifier-Free Guidance:**
-    Technique to condition generation by a prompt or category *(e.g., "Star Wars")*.
+  Study the attention mechanism applied to unordered point sets (permutation invariance).
+- **Transformers:**
+  Understanding autoregressive generation and how to predict sequences of bricks.
 
 ### 4. Loss Functions & Geometric Optimization
 
 - **Rotation Loss:**
-    Study geodesic distance on the quaternion sphere (different from simple MSE).
+  Study geodesic distance on the quaternion sphere (different from simple MSE).
 - **Repulsive Potential Loss:**
-    Implement cost functions of type 1/d² between part centers to penalize massive collisions during training.
+  Implement cost functions of type 1/d² between part centers to penalize massive collisions during training.
 - **Chamfer Distance:**
-    Metric for comparing two point clouds to evaluate reconstruction quality.
+  Metric for comparing two point clouds to evaluate reconstruction quality.
 
 ### 5. Data Engineering & LEGO Semantics
 
+- **Unified Vocabulary Management:**
+  Techniques for building and maintaining a single vocabulary that handles all discrete tokens (bricks and colors) with unique, non-overlapping indices.
 - **Category Embeddings:**
-    How to train or use dense vectors to represent parts so the model understands that a "Plate 1x2" is structurally close to a "Plate 1x4".
+  How to train or use dense vectors to represent parts so the model understands that a "Plate 1x2" is structurally close to a "Plate 1x4".
 - **Top-K Filtering & Long Tail:**
-    Vocabulary reduction techniques to keep only statistically significant parts and ensure model convergence.
-
-
-
-
+  Vocabulary reduction techniques to keep only statistically significant parts and ensure model convergence.
 
 # Sources
 
