@@ -21,10 +21,10 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
 - fix the vocab
 
   - [x] create special tokens ([SOS], [EOS], [PAD], etc.) and map them to idx
-  - maps idx to the most frequent rotations (0, 90, 180, etc. on all 3 axes xyz)
   - [x] map all known brick ids to vocab idx
   - [x] map all known colors ids to vocab idx
-  - map x, y and z positions to bins idx
+  - [] maps idx to the most frequent rotations (0, 90, 180, etc. on all 3 axes xyz)
+  - [] map x, y and z positions to bins idx
 
   So the vocab is : tokens first (0->3), then all the known brick_ids, then all y bins (512), then all the x bins (512), then all the z bins (512), then all the rotation idx (24), then all the known colors
 
@@ -32,12 +32,12 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
 
 ### Encoder
 
-    - replace true values by their corresponding idx in the vocab *(tokenize the dataset)*
-    - "flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones
+  - replace true values by their corresponding idx in the vocab *(tokenize the dataset)*
+  - "flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones
 
 ### Decoder
 
-    - group tokens by blocs of 6 *(group them by bricks)*
-    - de-binning (from bin idx to real position)
-    - snapping positions to the real grid
-    - reconstruct an output `.mpd` file, ready to be displayed in LDView
+  - group tokens by blocs of 6 *(group them by bricks)*
+  - de-binning (from bin idx to real position)
+  - snapping positions to the real grid
+  - reconstruct an output `.mpd` file, ready to be displayed in LDView

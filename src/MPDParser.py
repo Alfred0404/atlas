@@ -31,22 +31,6 @@ class RawBrickData(NamedTuple):
     color: int
 
 
-class BrickDataQuat(NamedTuple):
-    # data with quaternion rotation representation
-    brick_id: str
-    position: np.ndarray  # shape (3,) [x,y,z]
-    rotation_quat: np.ndarray  # shape (4,) [w,x,y,z]
-    color: int
-
-
-class ProcessedBrickData(NamedTuple):
-    # training ready data with brick_id and color mapped to integers
-    brick_idx: int  # mapped unique integer for brick_id
-    position: np.ndarray  # shape (3,) [x,y,z]
-    rotation_quat: np.ndarray  # shape (4,) [w,x,y,z]
-    color_idx: int  # mapped unique integer for color
-
-
 class MPDParser:
     """Parser for LEGO set mpd files.
     Args:
@@ -154,7 +138,7 @@ class MPDParser:
         Returns:
             list[RawBrickData]: List of raw bricks with world matrices.
         """
-        logger.info(f"Parsing MPD file: {self.mpd_file_path}")
+        logger.info(f"Parsing MPD file: {self.mpd_file_path}\n")
         self.flatten(model_name, np.eye(4))
         logger.info(f"Parsed {len(self.raw_data)} bricks")
         return self.raw_data

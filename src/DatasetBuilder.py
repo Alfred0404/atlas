@@ -4,9 +4,10 @@ import logging
 import json
 
 from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
-from MPDParser import MPDParser, RawBrickData, BrickDataQuat, ProcessedBrickData
+from MPDParser import MPDParser, RawBrickData
 from rotation_matrix_to_quaternion import rotation_matrix_to_quaternion
 from formating.customFormatter import CustomFormatter
+from typing import NamedTuple
 
 from config import LOGGING_LEVEL, RAW_DATASET_DIR, PARSED_DATASET_DIR, METADATA_PATH
 
@@ -22,13 +23,29 @@ raw_dataset_dir = RAW_DATASET_DIR
 parsed_dataset_dir = PARSED_DATASET_DIR
 
 
+class BrickDataQuat(NamedTuple):
+    # data with quaternion rotation representation
+    brick_id: str
+    position: np.ndarray  # shape (3,) [x,y,z]
+    rotation_quat: np.ndarray  # shape (4,) [w,x,y,z]
+    color: int
+
+
+class ProcessedBrickData(NamedTuple):
+    # training ready data with brick_id and color mapped to integers
+    brick_idx: int  # mapped unique integer for brick_id
+    position: np.ndarray  # shape (3,) [x,y,z]
+    rotation_quat: np.ndarray  # shape (4,) [w,x,y,z]
+    color_idx: int  # mapped unique integer for color
+
+
 class DatasetBuilder:
     def __init__(self, metadata_path: str):
         self.metadata_path = metadata_path
         self.global_max_distance = 0.0
         self.vocabulary = {"[SOS]": 0, "[EOS]": 1, "[PAD]": 2, "[UNK]": 3}
-        self.all_brick_ids = set()  # Collect all unique brick IDs
-        self.all_colors = set()  # Collect all unique colors
+        self.all_brick_ids = set()
+        self.all_colors = set()
 
         # Data storage for processing individual files
         self.raw_data: list[RawBrickData] = []
@@ -37,9 +54,13 @@ class DatasetBuilder:
         self.final_tensor = None
 
     def process_dataset(self):
+        """Process all MPD files in the raw dataset directory."""
 
-        for mpd_file in Path(raw_dataset_dir).glob("*.mpd"):
-            # parse mpd file
+        logger.info("Starting dataset processing...\n")
+
+        all_files = list(Path(raw_dataset_dir).glob("*.mpd"))
+
+        for mpd_file in all_files:
             parser = MPDParser(str(mpd_file))
 
             logger.info(f"Processing {mpd_file} with {len(self.raw_data)} bricks.")
@@ -50,19 +71,21 @@ class DatasetBuilder:
                 continue
 
             first_submodel_key = list(parser._submodels.keys())[0]
+
             self.raw_data = parser.flatten(first_submodel_key, np.eye(4))
             self.raw_data = parser.sort_bricks_by_position()
 
             # Transform data
             self.center_around_origin()
             self.to_quat_representation()
+
+            logger.info(f"Transformation completed for {mpd_file}\n")
+
             # self.calculate_max_brick_distance() not needed because we use transformer architecture instead of diffusion
 
-            # Collect unique brick IDs and colors from this file
             new_brick_ids = self.collect_brick_ids()
             new_colors = self.collect_brick_colors()
 
-            # Add to global sets
             self.all_brick_ids.update(new_brick_ids)
             self.all_colors.update(new_colors)
 
@@ -71,12 +94,11 @@ class DatasetBuilder:
 
         # Build unified vocabulary: special tokens (0-3), then all bricks, then all colors
         self.build_unified_vocabulary()
-
-        logger.info("Dataset processing complete.")
-        logger.info(
-            f"Final vocabulary size: {len(self.vocabulary)} (Bricks: {len(self.all_brick_ids)}, Colors: {len(self.all_colors)}, Special tokens: 4)"
-        )
         self.save_vocabulary()
+
+        logger.info("Dataset processing complete.\n")
+
+        logger.debug(f"final quat data sample: {self.quat_data[0]}")
 
     def center_around_origin(self):
         """Center the model around the origin based on the average position of all bricks."""
@@ -185,7 +207,10 @@ class DatasetBuilder:
         - Indices 4+: All brick IDs (sorted)
         - Indices after bricks: All colors (sorted)
         """
+
         # Start indexing after special tokens
+        logger.info("Building unified vocabulary.\n")
+
         current_index = 4
 
         # Add all brick IDs (sorted for consistency)
@@ -206,7 +231,10 @@ class DatasetBuilder:
             current_index += 1
 
         logger.info(
-            f"Added {len(sorted_colors)} colors to vocabulary (indices {current_index-len(sorted_colors)}-{current_index-1})"
+            f"Added {len(sorted_colors)} colors to vocabulary (indices {current_index-len(sorted_colors)}-{current_index-1})\n"
+        )
+        logger.info(
+            f"Final vocabulary size: {len(self.vocabulary)} (Bricks: {len(self.all_brick_ids)}, Colors: {len(self.all_colors)}, Special tokens: 4)\n"
         )
         logger.debug(f"Sample vocabulary entries: {list(self.vocabulary.items())[:10]}")
 
@@ -294,7 +322,7 @@ class DatasetBuilder:
             json.dump(vocab_data, f, indent=4, sort_keys=True)
 
         logger.info(
-            f"Vocabulary saved to {self.metadata_path} with {len(self.vocabulary)} total entries"
+            f"Vocabulary saved to {self.metadata_path} with {len(self.vocabulary)} total entries\n"
         )
 
     def _update_global_max_distance(self, distance: float):
@@ -302,20 +330,6 @@ class DatasetBuilder:
         if distance > self.global_max_distance:
             self.global_max_distance = distance
             logger.debug(f"Updated global max distance to: {distance}")
-
-    # def _update_brick_vocabulary(self, brick_id: str):
-    #     """Update brick vocabulary with a new brick ID."""
-    #     if brick_id not in self.brick_vocabulary:
-    #         idx = len(self.brick_vocabulary)
-    #         self.brick_vocabulary[brick_id] = idx
-    #         logger.debug(f"Added brick {brick_id} to vocabulary at index {idx}")
-
-    # def _update_color_vocabulary(self, color: int):
-    #     """Update color vocabulary with a new color."""
-    #     if color not in self.color_vocabulary:
-    #         idx = len(self.color_vocabulary)
-    #         self.color_vocabulary[color] = idx
-    #         logger.debug(f"Added color {color} to vocabulary at index {idx}")
 
     def to_quaternion(self, rotation_matrix: np.ndarray) -> np.ndarray:
         """Convert a rotation matrix to a quaternion.
