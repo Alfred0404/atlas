@@ -10,16 +10,20 @@ class CustomFormatter(logging.Formatter):
 
     # ANSI escape codes for colors
     grey = "\x1b[38;20m"
+    magenta = "\x1b[35m"
+    blue = "\x1b[34m"
+    cyan = "\x1b[36m"
     yellow = "\x1b[33;20m"
     red = "\x1b[31;20m"
     bold_red = "\x1b[31;1m"
     reset = "\x1b[0m"
-    format = "%(filename)s:%(lineno)d - %(asctime)s - %(message)s"
+
+    format = "%(filename)s:%(lineno)d·%(asctime)s·%(message)s"
 
     # Define different formats for different log levels
     FORMATS = {
-        logging.DEBUG: grey + format + reset,
-        logging.INFO: grey + format + reset,
+        logging.DEBUG: magenta + format + reset,
+        logging.INFO: blue + format + reset,
         logging.WARNING: yellow + format + reset,
         logging.ERROR: red + format + reset,
         logging.CRITICAL: bold_red + format + reset,
