@@ -2,17 +2,17 @@ import numpy as np
 import logging
 from scipy.spatial.transform import Rotation as R
 from formating.customFormatter import CustomFormatter
-from config import LOGGING_LEVEL
+from config import Config
 
 
 # Set up logging
 # --------------------------------
 logger = logging.getLogger(__name__)
-logger.setLevel(LOGGING_LEVEL)
+logger.setLevel(Config.LOGGING_LEVEL)
 
 # create console handler with CustomFormatter
 ch = logging.StreamHandler()
-ch.setLevel(LOGGING_LEVEL)
+ch.setLevel(Config.LOGGING_LEVEL)
 ch.setFormatter(CustomFormatter())
 
 logger.addHandler(ch)
@@ -102,6 +102,6 @@ if __name__ == "__main__":
     rotations = generate_quat_chiral_rotations()
     rotation_strings = [",".join(map(str, rot)) for rot in rotations]
     logger.info("Generated Rotations (Quaternions [w, x, y, z]):")
-    
+
     for rot_str in rotation_strings:
         logger.info(rot_str)

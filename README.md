@@ -162,10 +162,10 @@ Where:
 
 ```python
 from src.DatasetBuilder import DatasetBuilder
-from src.config import METADATA_PATH
+from src.config import VOCAB_PATH
 
 # Initialize and process all MPD files
-builder = DatasetBuilder(METADATA_PATH)
+builder = DatasetBuilder(VOCAB_PATH)
 builder.process_dataset()
 ```
 
@@ -206,7 +206,6 @@ Edit `src/config.py` to configure paths:
 LOGGING_LEVEL = logging.DEBUG
 RAW_DATASET_DIR = "./mpd_files/dataset"
 PARSED_DATASET_DIR = "./processed_sets/"
-METADATA_PATH = "./vocab.json"
 VOCAB_PATH = "./vocab.json"
 ```
 

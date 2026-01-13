@@ -1,3 +1,4 @@
+from typing import NamedTuple
 import numpy as np
 from pathlib import Path
 import logging
@@ -10,20 +11,19 @@ from rotation_matrix_to_quaternion import (
     generate_quat_chiral_rotations,
 )
 from formating.customFormatter import CustomFormatter
-from typing import NamedTuple
 
-from config import LOGGING_LEVEL, RAW_DATASET_DIR, PARSED_DATASET_DIR, METADATA_PATH
+from config import Config
 
 # Set up logging
 logger = logging.getLogger(__name__)
-logger.setLevel(LOGGING_LEVEL)
+logger.setLevel(Config.LOGGING_LEVEL)
 ch = logging.StreamHandler()
-ch.setLevel(LOGGING_LEVEL)
+ch.setLevel(Config.LOGGING_LEVEL)
 ch.setFormatter(CustomFormatter())
 logger.addHandler(ch)
 
-raw_dataset_dir = RAW_DATASET_DIR
-parsed_dataset_dir = PARSED_DATASET_DIR
+raw_dataset_dir = Config.RAW_DATASET_DIR
+parsed_dataset_dir = Config.PARSED_DATASET_DIR
 
 
 class BrickDataQuat(NamedTuple):
@@ -43,8 +43,8 @@ class ProcessedBrickData(NamedTuple):
 
 
 class DatasetBuilder:
-    def __init__(self, metadata_path: str):
-        self.metadata_path = metadata_path
+    def __init__(self, vocab_path: str):
+        self.vocab_path = vocab_path
         self.global_max_distance = 0.0
         self.vocabulary = {"[SOS]": 0, "[EOS]": 1, "[PAD]": 2, "[UNK]": 3}
         self.all_brick_ids = set()
@@ -224,6 +224,10 @@ class DatasetBuilder:
             self.vocabulary[rot_key] = current_index
             current_index += 1
 
+        logger.info(
+            f"Added {len(self.unique_rotations)} rotations to vocabulary (indices 4-{current_index-1})"
+        )
+
         # Add all brick IDs (sorted for consistency)
         sorted_brick_ids = sorted(self.all_brick_ids)
         for brick_id in sorted_brick_ids:
@@ -231,7 +235,7 @@ class DatasetBuilder:
             current_index += 1
 
         logger.info(
-            f"Added {len(sorted_brick_ids)} bricks to vocabulary (indices 4-{current_index-1})"
+            f"Added {len(sorted_brick_ids)} bricks to vocabulary (indices {4+len(self.unique_rotations)}-{current_index-1})"
         )
 
         # Add all colors (sorted for consistency)
@@ -246,23 +250,9 @@ class DatasetBuilder:
             f"Added {len(sorted_colors)} colors to vocabulary (indices {current_index-len(sorted_colors)}-{current_index-1})\n"
         )
         logger.info(
-            f"Final vocabulary size: {len(self.vocabulary)} (Bricks: {len(self.all_brick_ids)}, Colors: {len(self.all_colors)}, Special tokens: 4)\n"
+            f"Final vocabulary size: {len(self.vocabulary)} (Rotations: {len(self.unique_rotations)}, Bricks: {len(self.all_brick_ids)}, Colors: {len(self.all_colors)}, Special tokens: 4)\n"
         )
         logger.debug(f"Sample vocabulary entries: {list(self.vocabulary.items())[:10]}")
-
-    def add_rotations_to_vocabulary(self, output_path: str):
-        """Add the 24 chiral octahedral rotations to the vocabulary JSON file.
-
-        Args:
-            output_path (str): Path to the metadata JSON file.
-        """
-        rotations = generate_quat_chiral_rotations()
-        rotation_strings = [",".join(map(str, rot)) for rot in rotations]
-        logger.info(
-            f"Adding {len(rotation_strings)} chiral octahedral rotations to vocabulary."
-        )
-        logger.debug(f"Sample rotations: {rotation_strings[:3]}")
-
 
     def update_json(self, output_path: str, key: str, new_items: list):
         """
@@ -344,11 +334,11 @@ class DatasetBuilder:
         """Save unified vocabulary to metadata file."""
         vocab_data = {"vocabulary": self.vocabulary}
 
-        with open(self.metadata_path, "w", encoding="utf-8") as f:
+        with open(self.vocab_path, "w", encoding="utf-8") as f:
             json.dump(vocab_data, f, indent=4, sort_keys=True)
 
         logger.info(
-            f"Vocabulary saved to {self.metadata_path} with {len(self.vocabulary)} total entries\n"
+            f"Vocabulary saved to {self.vocab_path}\n"
         )
 
     def _update_global_max_distance(self, distance: float):
@@ -404,5 +394,5 @@ class DatasetBuilder:
 
 
 if __name__ == "__main__":
-    dataset_builder = DatasetBuilder(METADATA_PATH)
+    dataset_builder = DatasetBuilder(Config.VOCAB_PATH)
     dataset_builder.process_dataset()

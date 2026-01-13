@@ -1,9 +1,13 @@
 import logging
 
-LOGGING_LEVEL = logging.DEBUG
+class Config:
+    """Configuration settings for the application."""
 
-RAW_DATASET_DIR = "./mpd_files/dataset"
-PARSED_DATASET_DIR = "./processed_sets/"
+    # logging
+    LOGGING_LEVEL = logging.INFO
 
-METADATA_PATH = "./vocab.json"
-VOCAB_PATH = "./vocab.json"
+    # dataset paths
+    RAW_DATASET_DIR = "./mpd_files/dataset"
+    PARSED_DATASET_DIR = "./processed_sets/"
+
+    VOCAB_PATH = "./vocab.json"

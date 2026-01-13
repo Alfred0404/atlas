@@ -3,16 +3,16 @@ import logging
 from typing import NamedTuple
 
 from formating.customFormatter import CustomFormatter
-from config import LOGGING_LEVEL
+from config import Config
 
 # Set up logging
 # --------------------------------
 logger = logging.getLogger(__name__)
-logger.setLevel(LOGGING_LEVEL)
+logger.setLevel(Config.LOGGING_LEVEL)
 
 # create console handler with CustomFormatter
 ch = logging.StreamHandler()
-ch.setLevel(LOGGING_LEVEL)
+ch.setLevel(Config.LOGGING_LEVEL)
 ch.setFormatter(CustomFormatter())
 
 logger.addHandler(ch)
