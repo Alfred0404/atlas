@@ -23,7 +23,7 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
   - [x] create special tokens ([SOS], [EOS], [PAD], etc.) and map them to idx
   - [x] map all known brick ids to vocab idx
   - [x] map all known colors ids to vocab idx
-  - [] maps idx to the most frequent rotations (0, 90, 180, etc. on all 3 axes xyz)
+  - [] maps idx to the closest most frequent rotations (0, 90, 180, etc. on all 3 axes xyz) (compare the actual quaternion to the closest oen in the list of all 24 quaternions)
   - [] map x, y and z positions to bins idx
 
   So the vocab is : tokens first (0->3), then all the known brick_ids, then all y bins (512), then all the x bins (512), then all the z bins (512), then all the rotation idx (24), then all the known colors
@@ -41,3 +41,36 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
   - de-binning (from bin idx to real position)
   - snapping positions to the real grid
   - reconstruct an output `.mpd` file, ready to be displayed in LDView
+
+---
+
+w x y z
+
+1 0 0 0 (no rotation)
+
+0 1 0 0 (180° on all axes)
+0 0 1 0
+0 0 0 1
+
+0.7 0.7 0 0 (90 & 270 around x)
+0.7 -0.7 0 0
+0.7 0 0.7 0 (90 & 270 around z)
+0.7 0 -0.7 0
+0.7 0 0 0.7 (90 & 270 around y)
+0.7 0 0 -0.7
+
+0 0.7 0.7 0
+0 0.7 -0.7 0
+0 0.7 0 0.7
+0 0.7 0 -0.7
+0 0 0.7 0.7
+0 0 0.7 -0.7
+
+0.5 0.5 0.5 0.5
+0.5 0.5 0.5 -0.5
+0.5 0.5 -0.5 0.5
+0.5 0.5 -0.5 -0.5
+0.5 -0.5 0.5 0.5
+0.5 -0.5 0.5 -0.5
+0.5 -0.5 -0.5 0.5
+0.5 -0.5 -0.5 -0.5

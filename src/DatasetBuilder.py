@@ -5,7 +5,10 @@ import json
 
 from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
 from MPDParser import MPDParser, RawBrickData
-from rotation_matrix_to_quaternion import rotation_matrix_to_quaternion
+from rotation_matrix_to_quaternion import (
+    rotation_matrix_to_quaternion,
+    generate_quat_chiral_rotations,
+)
 from formating.customFormatter import CustomFormatter
 from typing import NamedTuple
 
@@ -46,6 +49,7 @@ class DatasetBuilder:
         self.vocabulary = {"[SOS]": 0, "[EOS]": 1, "[PAD]": 2, "[UNK]": 3}
         self.all_brick_ids = set()
         self.all_colors = set()
+        self.unique_rotations = []
 
         # Data storage for processing individual files
         self.raw_data: list[RawBrickData] = []
@@ -213,6 +217,13 @@ class DatasetBuilder:
 
         current_index = 4
 
+        # Add all unique rotations to vocabulary before bricks and colors because they are a fix number of 24
+        self.unique_rotations = generate_quat_chiral_rotations()
+        for rot in self.unique_rotations:
+            rot_key = f"rotation_{','.join(map(str, rot))}"
+            self.vocabulary[rot_key] = current_index
+            current_index += 1
+
         # Add all brick IDs (sorted for consistency)
         sorted_brick_ids = sorted(self.all_brick_ids)
         for brick_id in sorted_brick_ids:
@@ -230,6 +241,7 @@ class DatasetBuilder:
             self.vocabulary[color_key] = current_index
             current_index += 1
 
+
         logger.info(
             f"Added {len(sorted_colors)} colors to vocabulary (indices {current_index-len(sorted_colors)}-{current_index-1})\n"
         )
@@ -237,6 +249,20 @@ class DatasetBuilder:
             f"Final vocabulary size: {len(self.vocabulary)} (Bricks: {len(self.all_brick_ids)}, Colors: {len(self.all_colors)}, Special tokens: 4)\n"
         )
         logger.debug(f"Sample vocabulary entries: {list(self.vocabulary.items())[:10]}")
+
+    def add_rotations_to_vocabulary(self, output_path: str):
+        """Add the 24 chiral octahedral rotations to the vocabulary JSON file.
+
+        Args:
+            output_path (str): Path to the metadata JSON file.
+        """
+        rotations = generate_quat_chiral_rotations()
+        rotation_strings = [",".join(map(str, rot)) for rot in rotations]
+        logger.info(
+            f"Adding {len(rotation_strings)} chiral octahedral rotations to vocabulary."
+        )
+        logger.debug(f"Sample rotations: {rotation_strings[:3]}")
+
 
     def update_json(self, output_path: str, key: str, new_items: list):
         """
