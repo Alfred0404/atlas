@@ -18,22 +18,25 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
 - [Set Transformer](https://arxiv.org/pdf/1810.00825)
 
 - [x] sort all the bricks in a deterministic way (so the model learn 'syntax')
-- fix the vocab
 
+- fix the vocab
   - [x] create special tokens ([SOS], [EOS], [PAD], etc.) and map them to idx
   - [x] map all known brick ids to vocab idx
   - [x] map all known colors ids to vocab idx
-  - [] maps idx to the closest most frequent rotations (0, 90, 180, etc. on all 3 axes xyz) (compare the actual quaternion to the closest oen in the list of all 24 quaternions)
+  - [x] maps idx to the closest most frequent rotations (0, 90, 180, etc. on all 3 axes xyz)
   - [] map x, y and z positions to bins idx
 
   So the vocab is : tokens first (0->3), then all the known brick_ids, then all y bins (512), then all the x bins (512), then all the z bins (512), then all the rotation idx (24), then all the known colors
 
 ## Tokenizer
 
+- [] check how other point transformers handle positions
+
 ### Encoder
 
   - replace true values by their corresponding idx in the vocab *(tokenize the dataset)*
   - "flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones
+  - [] for tokenization, compare the actual quaternion to the closest one in the list of all 24 quaternions
 
 ### Decoder
 

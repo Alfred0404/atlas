@@ -1,10 +1,69 @@
-# ATLAS _(Autoregressive Transformer Lego Assembly Synthesis)_
+<br />
+<div align="center">
+  <a href="https://github.com/alfred0404/atlas">
+    <img src="public/logo_atlas.png" alt="Logo" width="300">
+  </a>
 
-This project aims to generate coherent and mechanically plausible LEGO sets using an autoregressive transformer architecture, predicting the next brick based on the previous ones.
+  <h3 align="center" style="font-weight: bold">ATLAS</h3>
+
+  <p align="center" style="font-style: italic">
+    Autoregressive Transformer Lego Assembly Synthesis
+    <br />
+  </p>
+</div>
+
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![LinkedIn][linkedin-shield]][linkedin-url]
 
 ## Overview
 
+This project aims to generate coherent and mechanically plausible LEGO sets using an autoregressive transformer architecture, predicting the next brick based on the previous ones.
+
 ATLAS is a data processing pipeline designed to prepare LEGO set data for deep learning models. The project parses `.mpd` files (LEGO MPD/Part format), extracts brick information, and converts it into a structured representation suitable for transformer-based generative models.
+
+## Installation
+
+### Prerequisites
+
+- Python 3.7 or higher
+- pip (Python package installer)
+
+### Setup
+
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/alfred0404/atlas.git
+   cd atlas
+   ```
+
+2. **Create a virtual environment (recommended):**
+
+   ```bash
+   # On Windows
+   python -m venv venv
+   venv\Scripts\activate
+
+   # On macOS/Linux
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Install required dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Verify Installation
+
+You can verify the installation by running the parser on a test file:
+
+```bash
+python src/DatasetBuilder.py
+```
 
 ## Data Representation
 
@@ -272,3 +331,8 @@ The project includes 50+ Star Wars LEGO sets in `.mpd` format, ranging from smal
 [Quaternions sandbox](https://eater.net/quaternions/)
 [Scipy.as_quat](https://docs.scipy.org/doc/scipy-1.16.1/reference/generated/scipy.spatial.transform.Rotation.as_quat.html)
 [Point cloud search on hf](https://huggingface.co/models?search=point%20cloud)
+[Quaternions and spatial rotations](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation)
+
+<p align="center">
+	<img src="https://raw.githubusercontent.com/catppuccin/catppuccin/main/assets/footers/gray0_ctp_on_line.svg?sanitize=true" />
+</p>
