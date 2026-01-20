@@ -87,19 +87,26 @@ $$X_i = [ID_{brick}, color, x, y, z, q_w, q_x, q_y, q_z]$$
 ```
 ATLAS/
 ├── src/
-│   ├── config.py                           # Configuration settings
+│   ├── config.py                           # Configuration class (constants)
 │   ├── MPDParser.py                        # MPD file parser
 │   ├── DatasetBuilder.py                   # Dataset processing pipeline
 │   ├── utils.py                            # Matrix manipulation utilities
 │   ├── rotation_matrix_to_quaternion.py    # Rotation conversion utilities
 │   ├── write_mpd_file.py                   # MPD file writer
+│   ├── scrap_mpd_files.py                  # mpd file scraper (only works on seymouria.pl website)
 │   └── formating/
 │       └── customFormatter.py              # Custom logging formatter
 ├── mpd_files/
 │   ├── dataset/                            # Input MPD files
+│   │   ├── LDraw_sets/                     # Input MPD files
+│   │   └── seymouria_ldraw_official_sets/  # Input MPD files
 │   └── generated/                          # Generated output files
+├── public/                                 # all public resources (mostly images)
 ├── processed_sets/                         # Processed numpy arrays
 ├── vocab.json                              # Unified vocabulary
+├── requirements.txt
+├── .gitignore
+├── TODO.md
 └── README.md
 ```
 
@@ -270,11 +277,7 @@ VOCAB_PATH = "./vocab.json"
 
 ## Dataset
 
-The project includes 50+ Star Wars LEGO sets in `.mpd` format, ranging from small polybags to Ultimate Collector's Series models:
-
-- 10179 - Ultimate Collector's Millennium Falcon
-- 10240 - UCS Red Five X-wing Starfighter
-- Various minifig-scale ships and vehicles
+The current dataset is composed of the LDraw base models (sorted by theme), and 1000+ official lego sets from [seymouria.pl](https://www.seymouria.pl/Download/official-lego-sets-ldr.php), downloaded using the `scrap_mpd_files.py` file. All the files are either `.mpd` or `.ldr` files for now.
 
 ## Future Directions
 
@@ -290,7 +293,7 @@ The project includes 50+ Star Wars LEGO sets in `.mpd` format, ranging from smal
 - Transformer architecture for autoregressive brick prediction
 - Study Point Transformers for permutation invariance
 - Explore Set Transformer architectures
-- References: [PointGPT](https://github.com/CGuangyan-BIT/PointGPT), [Set Transformer](https://arxiv.org/pdf/1810.00825)
+- References: [PointGPT](https://github.com/CGuangyan-BIT/PointGPT), [Set Transformer](https://arxiv.org/pdf/1810.00825), [Lego GPT](https://arxiv.org/pdf/2505.05469)
 
 ### Post-Processing
 

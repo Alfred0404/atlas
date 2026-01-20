@@ -11,8 +11,15 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, quote
 
 
-def download_file(url, save_path):
-    """Download a file from a URL to the specified path."""
+def download_file(url: str, save_path: str) -> bool:
+    """Download a file from a URL to the specified path.
+    Args:
+        url (str): The URL of the file to download.
+        save_path (str): The local path to save the downloaded file.
+    Returns:
+        bool: True if download was successful, False otherwise.
+    """
+
     try:
         response = requests.get(url, timeout=30, stream=True)
         response.raise_for_status()
@@ -25,16 +32,21 @@ def download_file(url, save_path):
                     f.write(chunk)
 
         return True
+
     except Exception as e:
         print(f"Error downloading {url}: {e}")
         return False
 
 
-def get_all_file_links(base_url):
+def get_all_file_links(base_url: str):
     """
     Scrape the webpage and extract all .mpd and .ldr file links.
-    Returns a list of tuples: (filename, file_url)
+    Args:
+        base_url (str): The URL of the webpage to scrape.
+    Returns:
+        list of tuples: A list of (filename, file_url) tuples.
     """
+    
     try:
         response = requests.get(base_url, timeout=30)
         response.raise_for_status()
