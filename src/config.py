@@ -1,5 +1,6 @@
 import logging
 
+
 class Config:
     """Configuration settings for the application."""
 
@@ -10,4 +11,4 @@ class Config:
     RAW_DATASET_DIR = "./mpd_files/dataset/LDraw_sets/"
     PARSED_DATASET_DIR = "./processed_sets/"
 
-    VOCAB_PATH = "./vocab.json"
+    ATLAS_CONFIG_PATH = "./atlas_config.json"

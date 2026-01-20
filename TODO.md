@@ -12,7 +12,7 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
 - [x] start to think about the actual model architecture
 - [] optimize flatten method
 - [] reorganize the src folder
-- [] refactor the vocabulary creation and vocab.json, to not store every position (they can be computed when needed)
+- [x] refactor the vocabulary creation and vocab.json, to not store every position (they can be computed when needed)
 
 ## Transformer architecture (predict the next brick based on all the previous ones)
 
@@ -41,16 +41,16 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
 
 ### Encoder
 
-  - replace true values by their corresponding idx in the vocab *(tokenize the dataset)*
-  - "flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones
-  - [] for tokenization, compare the actual quaternion to the closest one in the list of all 24 quaternions
+- replace true values by their corresponding idx in the vocab _(tokenize the dataset)_
+- "flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones
+- [] for tokenization, compare the actual quaternion to the closest one in the list of all 24 quaternions
 
 ### Decoder
 
-  - group tokens by blocs of 6 *(group them by bricks)*
-  - de-binning (from bin idx to real position)
-  - snapping positions to the real grid
-  - reconstruct an output `.mpd` file, ready to be displayed in LDView
+- group tokens by blocs of 6 _(group them by bricks)_
+- de-binning (from bin idx to real position)
+- snapping positions to the real grid
+- reconstruct an output `.mpd` file, ready to be displayed in LDView
 
 ---
 
