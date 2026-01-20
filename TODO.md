@@ -12,11 +12,13 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
 - [x] start to think about the actual model architecture
 - [] optimize flatten method
 - [] reorganize the src folder
+- [] refactor the vocabulary creation and vocab.json, to not store every position (they can be computed when needed)
 
 ## Transformer architecture (predict the next brick based on all the previous ones)
 
 - [point gpt](https://github.com/CGuangyan-BIT/PointGPT)
 - [Set Transformer](https://arxiv.org/pdf/1810.00825)
+- [lego gpt](https://avalovelace1.github.io/BrickGPT/)
 
 - [x] sort all the bricks in a deterministic way (so the model learn 'syntax')
 

@@ -105,25 +105,44 @@ class DatasetBuilder:
         logger.debug(f"final quat data sample: {self.quat_data[0]}")
 
     def center_around_origin(self):
-        """Center the model around the origin based on the average position of all bricks."""
+        """
+        Normalise l'espace du modèle : centre les axes X et Z sur la grille de 10 LDU
+        et aligne la base du modèle (le point le plus bas) sur Y = 0.
+        """
         if not self.raw_data:
             logger.warning("No raw data to center.")
             return
 
-        # Compute average position
+        # 1. Extraction des positions actuelles
         positions = np.array(
             [
                 get_position_from_world_matrix(brick.world_matrix)
                 for brick in self.raw_data
             ]
         )
-        barycenter = np.mean(positions, axis=0)
 
-        logger.debug(f"Centering model around origin. Average position: {barycenter}")
+        # 2. Calcul des limites (Bounding Box)
+        min_coords = np.min(positions, axis=0)
+        max_coords = np.max(positions, axis=0)
 
-        # Update world matrices to center around origin
+        # 3. Calcul du centre théorique pour X et Z
+        center_x = (min_coords[0] + max_coords[0]) / 2
+        center_z = (min_coords[2] + max_coords[2]) / 2
+
+        # 4. Snapping sur la grille (10 LDU pour X/Z, 8 LDU pour Y)
+        # Pour Y, on prend le point le plus bas (max_coords[1] en LDraw car Y positif descend)
+        # On le snappe à 8 LDU pour rester propre
+        snapped_offset = np.array([
+            np.round(center_x / 10.0) * 10.0,
+            np.round(max_coords[1] / 8.0) * 8.0,
+            np.round(center_z / 10.0) * 10.0
+        ])
+
+        logger.debug(f"Applying grid-snapped centering. Offset: {snapped_offset}")
+
+        # 5. Mise à jour des matrices mondiales
         for brick in self.raw_data:
-            brick.world_matrix[:3, 3] -= barycenter
+            brick.world_matrix[:3, 3] -= snapped_offset
 
     def to_quat_representation(self):
         """
