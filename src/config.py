@@ -7,7 +7,7 @@ class Config:
     LOGGING_LEVEL = logging.INFO
 
     # dataset paths
-    RAW_DATASET_DIR = "./mpd_files/dataset"
+    RAW_DATASET_DIR = "./mpd_files/dataset/LDraw_sets/"
     PARSED_DATASET_DIR = "./processed_sets/"
 
     VOCAB_PATH = "./vocab.json"

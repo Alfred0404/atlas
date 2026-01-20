@@ -332,6 +332,7 @@ The project includes 50+ Star Wars LEGO sets in `.mpd` format, ranging from smal
 [Scipy.as_quat](https://docs.scipy.org/doc/scipy-1.16.1/reference/generated/scipy.spatial.transform.Rotation.as_quat.html)
 [Point cloud search on hf](https://huggingface.co/models?search=point%20cloud)
 [Quaternions and spatial rotations](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation)
+[Official lego sets ldr](https://www.seymouria.pl/Download/official-lego-sets-ldr.php)
 
 <p align="center">
 	<img src="https://raw.githubusercontent.com/catppuccin/catppuccin/main/assets/footers/gray0_ctp_on_line.svg?sanitize=true" />
