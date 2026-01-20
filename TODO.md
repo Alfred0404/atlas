@@ -11,7 +11,7 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
 - [x] finish the MPDParser and the DatasetBuilder
 - [x] start to think about the actual model architecture
 - [] optimize flatten method
-- [] reorganize the srrc folder
+- [] reorganize the src folder
 
 ## Transformer architecture (predict the next brick based on all the previous ones)
 

@@ -4,11 +4,22 @@ Downloads official LEGO set files in LDraw format.
 """
 
 import os
-import re
 import time
+import logging
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, quote
+from urllib.parse import urljoin
+
+from formating.customFormatter import CustomFormatter
+from config import Config
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(Config.LOGGING_LEVEL)
+ch = logging.StreamHandler()
+ch.setLevel(Config.LOGGING_LEVEL)
+ch.setFormatter(CustomFormatter())
+logger.addHandler(ch)
 
 
 def download_file(url: str, save_path: str) -> bool:
@@ -34,7 +45,7 @@ def download_file(url: str, save_path: str) -> bool:
         return True
 
     except Exception as e:
-        print(f"Error downloading {url}: {e}")
+        logger.error(f"Error downloading {url}: {e}")
         return False
 
 
@@ -46,7 +57,7 @@ def get_all_file_links(base_url: str):
     Returns:
         list of tuples: A list of (filename, file_url) tuples.
     """
-    
+
     try:
         response = requests.get(base_url, timeout=30)
         response.raise_for_status()
@@ -72,7 +83,7 @@ def get_all_file_links(base_url: str):
         return file_links
 
     except Exception as e:
-        print(f"Error fetching page: {e}")
+        logger.error(f"Error fetching page: {e}")
         return []
 
 
@@ -81,15 +92,15 @@ def main():
     base_url = "https://www.seymouria.pl/Download/official-lego-sets-ldr.php"
     download_dir = os.path.join(os.getcwd(), "downloaded_lego_files")
 
-    print("Fetching file list from seymouria.pl...")
+    logger.info("Fetching file list from seymouria.pl...")
     file_links = get_all_file_links(base_url)
 
     if not file_links:
-        print("No files found. The page structure might have changed.")
+        logger.warning("No files found. The page structure might have changed.")
         return
 
-    print(f"Found {len(file_links)} files to download.")
-    print(f"Download directory: {download_dir}\n")
+    logger.info(f"Found {len(file_links)} files to download.")
+    logger.info(f"Download directory: {download_dir}")
 
     # Create download directory
     os.makedirs(download_dir, exist_ok=True)
@@ -103,30 +114,33 @@ def main():
 
         # Skip if file already exists
         if os.path.exists(save_path):
-            print(f"[{i}/{len(file_links)}] Skipping (already exists): {filename}")
+            logger.info(
+                f"[{i}/{len(file_links)}] Skipping (already exists): {filename}"
+            )
             success_count += 1
             continue
 
-        print(f"[{i}/{len(file_links)}] Downloading: {filename}")
+        logger.info(f"[{i}/{len(file_links)}] Downloading: {filename}")
 
         if download_file(file_url, save_path):
             success_count += 1
-            print(f"  ✓ Saved to: {save_path}")
+            logger.info(f"  ✓ Saved to: {save_path}")
         else:
             failed_count += 1
-            print(f"  ✗ Failed to download")
+            logger.warning(f"  ✗ Failed to download")
 
         # Be polite - add a small delay between downloads
         if i < len(file_links):
             time.sleep(0.5)
 
     # Summary
-    print("\n" + "=" * 60)
-    print(f"Download complete!")
-    print(f"Successfully downloaded: {success_count}/{len(file_links)}")
-    print(f"Failed: {failed_count}/{len(file_links)}")
-    print(f"Files saved to: {download_dir}")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info(f"Download complete!")
+    logger.info(f"Successfully downloaded: {success_count}/{len(file_links)}")
+    if failed_count > 0:
+        logger.warning(f"Failed: {failed_count}/{len(file_links)}")
+    logger.info(f"Files saved to: {download_dir}")
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":
