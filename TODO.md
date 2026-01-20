@@ -13,6 +13,7 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
 - [] optimize flatten method
 - [] reorganize the src folder
 - [x] refactor the vocabulary creation and vocab.json, to not store every position (they can be computed when needed)
+- [] add rotations to `atlas_config.json`
 
 ## Transformer architecture (predict the next brick based on all the previous ones)
 
@@ -29,9 +30,6 @@ $$Position_{norm} = \frac{Position_{centered}}{max(distance_{all\_ sets})}$$ -->
   - [x] maps idx to the closest most frequent rotations (0, 90, 180, etc. on all 3 axes xyz)
 
   - [] map x, y and z positions to bins idx (2 LDU is a pretty good compromise)
-    - precision = 2 # in LDU
-    - n_bins = farthest brick # 2 LDU
-    - bins = [i for i in range(n_bin, precision)]
 
   So the vocab is : tokens first (0->3), then all the known brick_ids, then all y bins (512), then all the x bins (512), then all the z bins (512), then all the rotation idx (24), then all the known colors
 

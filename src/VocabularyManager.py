@@ -27,7 +27,7 @@ logger.addHandler(ch)
 class VocabularyManager:
     """
     Manages the vocabulary for parts, colors, and rotations in atlas_config.json.
-    
+
     This class follows the Single Responsibility Principle by handling only
     vocabulary-related operations. Rotations are calculated on-the-fly and not stored.
     """
@@ -35,7 +35,7 @@ class VocabularyManager:
     def __init__(self, config_path: str):
         """
         Initialize the VocabularyManager.
-        
+
         Args:
             config_path: Path to the atlas_config.json file.
         """
@@ -46,25 +46,38 @@ class VocabularyManager:
     def _load_or_initialize_config(self) -> None:
         """
         Load existing configuration or initialize a new one.
-        
+
         Creates the config file with default structure if it doesn't exist.
+        Ensures rotations are populated even in existing configs.
         """
         if self.config_path.exists():
             try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     self.config_data = json.load(f)
                 logger.info(f"Loaded configuration from {self.config_path}")
+
+                # Check if rotations are empty and populate them if needed
+                if not self.config_data.get("vocabulary", {}).get("rotations"):
+                    logger.info("Rotations empty in existing config. Populating...")
+                    rotations = self._generate_rotation_vocabulary()
+                    self.config_data["vocabulary"]["rotations"] = rotations
+                    self.config_data["offsets"]["rotations"] = 4
+                    self.config_data["offsets"]["colors"] = 4 + len(rotations)
+                    self._save_config()
+                    logger.info("Rotations populated and config updated")
+
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse {self.config_path}: {e}")
                 self._initialize_default_config()
         else:
+            logger.warning(f"{self.config_path} does not exist. Creating a new config.")
             self._initialize_default_config()
             self._save_config()
 
     def _initialize_default_config(self) -> None:
         """Initialize configuration with default structure."""
         rotations = self._generate_rotation_vocabulary()
-        
+
         self.config_data = {
             "version": "1.0",
             "spatial": {
@@ -97,18 +110,18 @@ class VocabularyManager:
     def _generate_rotation_vocabulary(self) -> Dict[str, int]:
         """
         Generate the 24 chiral rotations vocabulary.
-        
+
         Returns:
             Dictionary mapping rotation quaternion strings to indices.
         """
         rotations = generate_quat_chiral_rotations()
         rotation_vocab = {}
-        
+
         for idx, quat in enumerate(rotations):
             # Create a unique key for each rotation quaternion
             key = f"[{quat[0]:.6f},{quat[1]:.6f},{quat[2]:.6f},{quat[3]:.6f}]"
             rotation_vocab[key] = idx
-        
+
         logger.debug(f"Generated {len(rotation_vocab)} rotation entries")
         return rotation_vocab
 
@@ -121,39 +134,39 @@ class VocabularyManager:
     def add_part(self, part_id: str) -> int:
         """
         Add a new part to the vocabulary if it doesn't exist.
-        
+
         Args:
             part_id: The unique identifier for the part (e.g., "3001.dat").
-            
+
         Returns:
             The index assigned to the part.
         """
         parts = self.config_data["vocabulary"]["parts"]
-        
+
         if part_id not in parts:
             # Calculate the new index based on current vocab size
             current_vocab_size = self.config_data["vocab_size"]
             parts[part_id] = len(parts)
             self.config_data["vocab_size"] = current_vocab_size + 1
-            
+
             # Update parts offset if this is the first part
             if len(parts) == 1:
                 colors_offset = self.config_data["offsets"]["colors"]
                 num_colors = len(self.config_data["vocabulary"]["colors"])
                 self.config_data["offsets"]["parts"] = colors_offset + num_colors
-            
+
             self._save_config()
             logger.debug(f"Added new part: {part_id} -> {parts[part_id]}")
-        
+
         return parts[part_id]
 
     def add_parts(self, part_ids: Set[str]) -> Dict[str, int]:
         """
         Add multiple parts to the vocabulary.
-        
+
         Args:
             part_ids: Set of part identifiers to add.
-            
+
         Returns:
             Dictionary mapping part IDs to their indices.
         """
@@ -165,39 +178,39 @@ class VocabularyManager:
     def add_color(self, color: int) -> int:
         """
         Add a new color to the vocabulary if it doesn't exist.
-        
+
         Args:
             color: The color code (LDraw color ID).
-            
+
         Returns:
             The index assigned to the color.
         """
         colors = self.config_data["vocabulary"]["colors"]
         color_key = str(color)
-        
+
         if color_key not in colors:
             # Calculate the new index based on current vocab size
             current_vocab_size = self.config_data["vocab_size"]
             colors[color_key] = len(colors)
             self.config_data["vocab_size"] = current_vocab_size + 1
-            
+
             # Update parts offset since colors come before parts
             colors_offset = self.config_data["offsets"]["colors"]
             num_colors = len(colors)
             self.config_data["offsets"]["parts"] = colors_offset + num_colors
-            
+
             self._save_config()
             logger.debug(f"Added new color: {color_key} -> {colors[color_key]}")
-        
+
         return colors[color_key]
 
     def add_colors(self, color_ids: Set[int]) -> Dict[str, int]:
         """
         Add multiple colors to the vocabulary.
-        
+
         Args:
             color_ids: Set of color codes to add.
-            
+
         Returns:
             Dictionary mapping color IDs (as strings) to their indices.
         """
@@ -209,10 +222,10 @@ class VocabularyManager:
     def get_part_index(self, part_id: str) -> int:
         """
         Get the index of a part in the vocabulary.
-        
+
         Args:
             part_id: The part identifier.
-            
+
         Returns:
             The index of the part, or the UNK token index (3) if not found.
         """
@@ -221,10 +234,10 @@ class VocabularyManager:
     def get_color_index(self, color: int) -> int:
         """
         Get the index of a color in the vocabulary.
-        
+
         Args:
             color: The color code.
-            
+
         Returns:
             The index of the color, or the UNK token index (3) if not found.
         """
@@ -233,45 +246,45 @@ class VocabularyManager:
     def get_rotation_index(self, quaternion: np.ndarray) -> int:
         """
         Get the index of the closest matching rotation.
-        
+
         This method calculates which of the 24 chiral rotations best matches
         the given quaternion.
-        
+
         Args:
             quaternion: Rotation quaternion [w, x, y, z].
-            
+
         Returns:
             The index of the closest rotation (0-23).
         """
         rotations = generate_quat_chiral_rotations()
-        
+
         # Find the closest rotation by comparing quaternion distance
         min_distance = float('inf')
         best_idx = 0
-        
+
         for idx, rot_quat in enumerate(rotations):
             # Quaternion distance (accounting for q and -q being equivalent)
             dist = min(
                 np.linalg.norm(quaternion - rot_quat),
                 np.linalg.norm(quaternion + rot_quat)
             )
-            
+
             if dist < min_distance:
                 min_distance = dist
                 best_idx = idx
-        
+
         return best_idx
 
     def get_special_token_index(self, token: str) -> int:
         """
         Get the index of a special token.
-        
+
         Args:
             token: The special token name (PAD, SOS, EOS, or UNK).
-            
+
         Returns:
             The index of the special token.
-            
+
         Raises:
             KeyError: If the token is not found.
         """
@@ -280,7 +293,7 @@ class VocabularyManager:
     def get_vocab_size(self) -> int:
         """
         Get the current vocabulary size.
-        
+
         Returns:
             The total number of tokens in the vocabulary.
         """
@@ -289,7 +302,7 @@ class VocabularyManager:
     def get_parts_count(self) -> int:
         """
         Get the number of parts in the vocabulary.
-        
+
         Returns:
             The number of unique parts.
         """
@@ -298,7 +311,7 @@ class VocabularyManager:
     def get_colors_count(self) -> int:
         """
         Get the number of colors in the vocabulary.
-        
+
         Returns:
             The number of unique colors.
         """
@@ -307,7 +320,7 @@ class VocabularyManager:
     def get_offsets(self) -> Dict[str, int]:
         """
         Get the offset values for different vocabulary sections.
-        
+
         Returns:
             Dictionary containing offset values.
         """
@@ -316,7 +329,7 @@ class VocabularyManager:
     def get_all_parts(self) -> Dict[str, int]:
         """
         Get all parts in the vocabulary.
-        
+
         Returns:
             Dictionary mapping part IDs to their indices.
         """
@@ -325,7 +338,7 @@ class VocabularyManager:
     def get_all_colors(self) -> Dict[str, int]:
         """
         Get all colors in the vocabulary.
-        
+
         Returns:
             Dictionary mapping color IDs to their indices.
         """

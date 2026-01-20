@@ -91,9 +91,9 @@ def generate_quat_chiral_rotations() -> list[np.ndarray]:
     # sort for consistency in the vocabulary
     final_quats.sort(key=lambda x: tuple(x))
 
-    logger.debug(f"Nombre de rotations uniques détectées : {len(final_quats)}")
+    logger.info(f"Nombre de rotations uniques détectées : {len(final_quats)}")
     for i, q in enumerate(final_quats):
-        logger.debug(f"ID {i:02d} | Quat [w, x, y, z]: {q.tolist()}")
+        logger.info(f"ID {i:02d} | Quat [w, x, y, z]: {q.tolist()}")
 
     return final_quats
 
