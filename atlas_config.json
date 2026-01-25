@@ -9,8 +9,11 @@
   "offsets": {
     "special": 0,
     "rotations": 4,
-    "colors": 28,
-    "parts": 68
+    "positions_x": 28,
+    "positions_y": 1028,
+    "positions_z": 2028,
+    "colors": 3028,
+    "parts": 3128
   },
   "vocabulary": {
     "special": {

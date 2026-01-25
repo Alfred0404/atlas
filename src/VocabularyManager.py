@@ -78,32 +78,27 @@ class VocabularyManager:
         """Initialize configuration with default structure."""
         rotations = self._generate_rotation_vocabulary()
 
+        # maybe move this dict to a constant in config.py
         self.config_data = {
             "version": "1.0",
-            "spatial": {
-                "l_min": -1000,
-                "l_max": 1000,
-                "step": 2,
-                "num_bins": 1000
-            },
+            "spatial": {"l_min": -1000, "l_max": 1000, "step": 2, "num_bins": 1000},
             "offsets": {
-                "special": 0,
-                "rotations": 4,
-                "colors": 4 + len(rotations),
-                "parts": None  # Will be calculated after colors are added
+                "special": 0, # 4 special tokens
+                "rotations": 4, # 24 rotations
+                "positions_x": 28, # 1000 position bins
+                "positions_y": 1028, # 1000 position bins
+                "positions_z": 2028, # 1000 position bins
+                "colors": 3028, # starting after positions
+                "parts": 3128, # starting after colors
             },
             "vocabulary": {
-                "special": {
-                    "PAD": 0,
-                    "SOS": 1,
-                    "EOS": 2,
-                    "UNK": 3
-                },
+                "special": {"PAD": 0, "SOS": 1, "EOS": 2, "UNK": 3},
                 "rotations": rotations,
                 "parts": {},
-                "colors": {}
+                "colors": {},
+                # Note: positions are not stored in vocabulary because the bins can be calculated
             },
-            "vocab_size": 4 + len(rotations)
+            "vocab_size": 4 + len(rotations),
         }
         logger.info("Initialized default configuration")
 
@@ -259,14 +254,14 @@ class VocabularyManager:
         rotations = generate_quat_chiral_rotations()
 
         # Find the closest rotation by comparing quaternion distance
-        min_distance = float('inf')
+        min_distance = float("inf")
         best_idx = 0
 
         for idx, rot_quat in enumerate(rotations):
             # Quaternion distance (accounting for q and -q being equivalent)
             dist = min(
                 np.linalg.norm(quaternion - rot_quat),
-                np.linalg.norm(quaternion + rot_quat)
+                np.linalg.norm(quaternion + rot_quat),
             )
 
             if dist < min_distance:
