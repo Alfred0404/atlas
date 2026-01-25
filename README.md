@@ -90,6 +90,7 @@ ATLAS/
 │   ├── config.py                           # Configuration class (constants)
 │   ├── MPDParser.py                        # MPD file parser
 │   ├── DatasetBuilder.py                   # Dataset processing pipeline
+│   ├── VocabularyManager.py                # Vocabulary management for atlas_config.json
 │   ├── utils.py                            # Matrix manipulation utilities
 │   ├── rotation_matrix_to_quaternion.py    # Rotation conversion utilities
 │   ├── write_mpd_file.py                   # MPD file writer
@@ -101,9 +102,12 @@ ATLAS/
 │   │   ├── LDraw_sets/                     # Input MPD files
 │   │   └── seymouria_ldraw_official_sets/  # Input MPD files
 │   └── generated/                          # Generated output files
+├── tests/                                  # Test suite
+│   ├── test_vocabulary.py                  # Unit tests for VocabularyManager
+│   └── test_integration.py                 # Integration tests for DatasetBuilder
 ├── public/                                 # all public resources (mostly images)
 ├── processed_sets/                         # Processed numpy arrays
-├── vocab.json                              # Unified vocabulary
+├── atlas_config.json                       # Unified vocabulary and configuration
 ├── requirements.txt
 ├── .gitignore
 ├── TODO.md
@@ -135,7 +139,7 @@ The `DatasetBuilder` class processes multiple MPD files and builds a unified dat
 2. **Centering:** Centers each model around its barycenter for training stability
 3. **Quaternion Conversion:** Converts rotation matrices to unit quaternions with $q_w \ge 0$ for consistency
 4. **Brick Sorting:** Sorts bricks by position for deterministic ordering
-5. **Vocabulary Building:** Creates a unified vocabulary across all models
+5. **Vocabulary Management:** Uses `VocabularyManager` to incrementally update vocabulary as new parts and colors are encountered
 
 **Data Pipeline:**
 
@@ -143,30 +147,91 @@ The `DatasetBuilder` class processes multiple MPD files and builds a unified dat
 Raw MPD File → RawBrickData → BrickDataQuat → ProcessedBrickData → Tensor
 ```
 
+### VocabularyManager
+
+The `VocabularyManager` class provides a clean interface for managing parts, colors, and rotations in `atlas_config.json`:
+
+- **Separation of Concerns:** Dedicated class handling only vocabulary operations
+- **On-the-fly Rotations:** 24 chiral rotations calculated dynamically, not stored in memory
+- **Incremental Updates:** Parts and colors added as encountered during dataset processing
+- **Type Safety:** All methods include type hints and comprehensive docstrings
+- **Automatic Persistence:** Configuration saved automatically when vocabulary is updated
+
+**Key Methods:**
+
+- `add_part(part_id)` / `add_parts(part_ids)` - Add parts to vocabulary
+- `add_color(color)` / `add_colors(color_ids)` - Add colors to vocabulary
+- `get_part_index(part_id)` - Retrieve part index (returns UNK if not found)
+- `get_color_index(color)` - Retrieve color index (returns UNK if not found)
+- `get_rotation_index(quaternion)` - Calculate rotation index from quaternion
+- `get_special_token_index(token)` - Get special token index (PAD, SOS, EOS, UNK)
+
 ### Vocabulary Structure
 
-The unified vocabulary is stored in `vocab.json` with the following structure:
+The vocabulary is managed by `VocabularyManager` and stored in `atlas_config.json`. The structure includes:
 
-1. **Indices 0-3:** Special tokens
+1. **Special Tokens (indices 0-3):** PAD, SOS, EOS, UNK
+2. **Rotations (indices 4-27, 24 chiral rotations):** Calculated on-the-fly from quaternions
+3. **Colors (starting after rotations):** Dynamically added as encountered
+4. **Parts (starting after colors):** Dynamically added as encountered
 
-   - `[SOS]` (0): Start of sequence
-   - `[EOS]` (1): End of sequence
-   - `[PAD]` (2): Padding token
-   - `[UNK]` (3): Unknown token
+The configuration file structure:
 
-2. **Indices 4-27:** 24 chiral octahedral rotations
+```json
+{
+  "version": "1.0",
+  "spatial": {
+    "l_min": -1000,
+    "l_max": 1000,
+    "step": 2,
+    "num_bins": 1000
+  },
+  "offsets": {
+    "special": 0,
+    "rotations": 4,
+    "colors": 28,
+    "parts": <calculated_dynamically>
+  },
+  "vocabulary": {
+    "special": {
+      "PAD": 0,
+      "SOS": 1,
+      "EOS": 2,
+      "UNK": 3
+    },
+    "rotations": {
+      "[w,x,y,z]": index
+    },
+    "parts": {
+      "part_id.dat": index
+    },
+    "colors": {
+      "color_code": index
+    }
+  },
+  "vocab_size": <total_tokens>
+}
+```
 
-   - Pre-computed quaternions representing all valid LEGO brick rotations (90° increments)
-   - Stored as `rotation_{w,x,y,z}` keys
+**Token Allocation:**
 
-3. **Indices 28+:** Brick IDs
+1. **Special Tokens (0-3):**
+   - `PAD` (0): Padding token
+   - `SOS` (1): Start of sequence
+   - `EOS` (2): End of sequence
+   - `UNK` (3): Unknown token
 
-   - All unique brick part IDs from the dataset (sorted alphabetically)
-   - Example: `3001`, `3003`, `3004`, etc.
+2. **Rotations (4-27):** 24 chiral octahedral rotations
+   - Quaternions representing all valid LEGO brick rotations (90° increments)
+   - Keys format: `[w,x,y,z]` with 6 decimal precision
 
-4. **Following indices:** Colors
-   - All unique LEGO colors prefixed with `color_`
-   - Example: `color_0`, `color_14`, `color_71`, etc.
+3. **Colors (28+):** LEGO color codes
+   - Dynamically added as new colors are encountered
+   - Keys are string representations of color IDs
+
+4. **Parts (after colors):** Brick part IDs
+   - Dynamically added as new parts are encountered
+   - Example: `3001.dat`, `3003.dat`, `3004.dat`
 
 ### Transformation Pipeline
 
@@ -187,13 +252,11 @@ Where:
 **Processing Steps:**
 
 1. **MPDParser** extracts:
-
    - Brick ID: `3028`
    - 4×4 World Matrix with position and rotation
    - Color: `71`
 
 2. **DatasetBuilder** transforms:
-
    - Extracts position from world matrix
    - Extracts rotation matrix using SVD decomposition (handles scaling)
    - Converts rotation matrix to quaternion
@@ -228,18 +291,18 @@ Where:
 
 ```python
 from src.DatasetBuilder import DatasetBuilder
-from src.config import VOCAB_PATH
+from src.config import Config
 
 # Initialize and process all MPD files
-builder = DatasetBuilder(VOCAB_PATH)
+builder = DatasetBuilder(Config.ATLAS_CONFIG_PATH)
 builder.process_dataset()
 ```
 
 This will:
 
 - Process all `.mpd` files in `mpd_files/dataset/`
-- Build unified vocabulary
-- Save vocabulary to `vocab.json`
+- Build and update vocabulary incrementally
+- Save vocabulary to `atlas_config.json`
 
 ### Parsing Single File
 
@@ -264,6 +327,33 @@ write_mpd_file(
 )
 ```
 
+## Testing
+
+The project includes comprehensive test suites:
+
+### Running Tests
+
+```bash
+# Run vocabulary manager tests
+python tests/test_vocabulary.py
+
+# Run integration tests
+python tests/test_integration.py
+```
+
+### Test Coverage
+
+- **test_vocabulary.py:** Unit tests for `VocabularyManager` functionality
+  - Adding/retrieving parts and colors
+  - Special token handling
+  - Rotation index calculation
+  - Vocabulary size management
+
+- **test_integration.py:** Integration tests for `DatasetBuilder` with `VocabularyManager`
+  - End-to-end workflow validation
+  - Vocabulary updates during processing
+  - Config file structure verification
+
 ## Configuration
 
 Edit `src/config.py` to configure paths:
@@ -272,7 +362,7 @@ Edit `src/config.py` to configure paths:
 LOGGING_LEVEL = logging.DEBUG
 RAW_DATASET_DIR = "./mpd_files/dataset"
 PARSED_DATASET_DIR = "./processed_sets/"
-VOCAB_PATH = "./vocab.json"
+ATLAS_CONFIG_PATH = "./atlas_config.json"
 ```
 
 ## Dataset
