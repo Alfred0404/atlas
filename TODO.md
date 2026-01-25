@@ -5,11 +5,24 @@
 ### Project Structure
 
 - [ ] Reorganize the src folder
+- [] Change the way of centering
 - [x] Add rotations to `atlas_config.json`
 
 ### Data Processing
 
 - [ ] Map x, y and z positions to bins idx (2 LDU is a pretty good compromise)
+
+## to refactor
+
+- to_quaternion() method just calls another function unnecessarily (delete the method)
+- add error handling
+- json i/o optimisation
+- hardcoded magic numbers
+- add test coverage
+- verify docstring
+- duplicate code for logging setup
+- missing `__init__.py` files
+- tests files in prod environnment
 
 ## Tokenizer Development
 

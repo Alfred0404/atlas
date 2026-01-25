@@ -3,13 +3,15 @@ import numpy as np
 from pathlib import Path
 import logging
 
-from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
 from MPDParser import MPDParser, RawBrickData
+from VocabularyManager import VocabularyManager
+from AtlasTokenizer import AtlasTokenizer
+
+from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
 from rotation_matrix_to_quaternion import rotation_matrix_to_quaternion
 from formating.customFormatter import CustomFormatter
-from VocabularyManager import VocabularyManager
-
 from config import Config
+
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -54,6 +56,7 @@ class DatasetBuilder:
             config_path: Path to the atlas_config.json file.
         """
         self.vocab_manager = VocabularyManager(config_path)
+        self.tokenizer = AtlasTokenizer(config_path)
         self.global_max_distance = 0.0
         self.all_brick_ids: Set[str] = set()
         self.all_colors: Set[int] = set()
@@ -102,6 +105,10 @@ class DatasetBuilder:
 
             self.all_brick_ids.update(new_brick_ids)
             self.all_colors.update(new_colors)
+
+            # convert positions to bins
+            self.tokenize_positions()
+
 
             # Update vocabulary incrementally
             self._update_vocabulary(new_brick_ids, new_colors)
@@ -267,44 +274,33 @@ class DatasetBuilder:
             self.vocab_manager.add_colors(new_colors)
             logger.debug(f"Added {len(new_colors)} new colors to vocabulary")
 
-    def use_id_mapping(self) -> List[ProcessedBrickData]:
+    def tokenize_positions(self) -> None:
         """
-        Map quaternion data to processed data using vocabulary indices.
+        Tokenize brick positions using the AtlasTokenizer.
 
-        Converts brick IDs, colors, and rotations to their vocabulary indices
-        using the VocabularyManager.
-
-        Returns:
-            List of ProcessedBrickData with mapped indices.
+        Converts continuous position values into discrete tokens based on
+        predefined bins in the AtlasTokenizer.
         """
         if not self.quat_data:
-            logger.warning("No quaternion data to process.")
-            return []
+            logger.warning("No quaternion data to tokenize positions.")
+            return
 
-        self.processed_data = []  # Clear previous data
+        # Tokenize positions for each brick
+        for i, brick in enumerate(self.quat_data):
+            tokenized_x = self.tokenizer.position_to_bin_id(brick.position[0], "x")
+            tokenized_y = self.tokenizer.position_to_bin_id(brick.position[1], "y")
+            tokenized_z = self.tokenizer.position_to_bin_id(brick.position[2], "z")
+            tokenized_position = (tokenized_x, tokenized_y, tokenized_z)
 
-        for brick in self.quat_data:
-            brick_idx = self.vocab_manager.get_part_index(brick.brick_id)
-            color_idx = self.vocab_manager.get_color_index(brick.color)
-
-            processed_brick = ProcessedBrickData(
-                brick_idx=brick_idx,
-                position=brick.position,
+            # Update the position in the ProcessedBrickData tuple
+            self.processed_data[i] = ProcessedBrickData(
+                brick_id=brick.brick_id,
+                position=tokenized_position,
                 rotation_quat=brick.rotation_quat,
-                color_idx=color_idx,
+                color=brick.color,
             )
 
-            self.processed_data.append(processed_brick)
-
-        logger.debug(
-            f"Processed {len(self.processed_data)} bricks using vocabulary mapping."
-        )
-        if self.quat_data:
-            logger.debug(f"Sample quaternion brick: {self.quat_data[0]}")
-        if self.processed_data:
-            logger.debug(f"Sample processed brick: {self.processed_data[0]}")
-
-        return self.processed_data
+        logger.debug("Tokenized positions to bins !")
 
     def _update_global_max_distance(self, distance: float) -> None:
         """
@@ -316,18 +312,6 @@ class DatasetBuilder:
         if distance > self.global_max_distance:
             self.global_max_distance = distance
             logger.debug(f"Updated global max distance to: {distance}")
-
-    def to_quaternion(self, rotation_matrix: np.ndarray) -> np.ndarray:
-        """
-        Convert a rotation matrix to a quaternion.
-
-        Args:
-            rotation_matrix: 3x3 rotation matrix.
-
-        Returns:
-            Quaternion [w, x, y, z].
-        """
-        return rotation_matrix_to_quaternion(rotation_matrix)
 
     def _to_tensor(self) -> None:
         """

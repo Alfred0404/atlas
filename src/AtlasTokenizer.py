@@ -18,7 +18,7 @@ class AtlasTokenizer:
     """
 
     def __init__(self):
-        pass
+        logger.info("Initialized AtlasTokenizer.")
 
     def position_to_bin_id(self, position: float, axis: str) -> int:
         """Convert a real-valued position to its corresponding bin ID.
