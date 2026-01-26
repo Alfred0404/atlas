@@ -1,3 +1,5 @@
+"""Matrix transformation utilities for world matrices."""
+
 import numpy as np
 
 

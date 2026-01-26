@@ -1,7 +1,18 @@
+import sys
+from pathlib import Path
 import numpy as np
 from typing import List
-from MPDParser import RawBrickData
-from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
+
+# Add src to path for direct execution
+if __name__ == "__main__":
+    src_path = Path(__file__).parent.parent
+    sys.path.insert(0, str(src_path))
+
+from data.parser import RawBrickData
+from maths.transforms import (
+    get_position_from_world_matrix,
+    get_rotation_matrix_from_world_matrix,
+)
 
 
 def write_mpd_file(

@@ -1,17 +1,22 @@
+import sys
+from pathlib import Path
 from typing import NamedTuple, List, Set
 import numpy as np
-from pathlib import Path
 
-from MPDParser import MPDParser, RawBrickData
-from VocabularyManager import VocabularyManager
-from AtlasTokenizer import AtlasTokenizer
+# Add src to path for direct execution
+if __name__ == "__main__":
+    src_path = Path(__file__).parent.parent
+    sys.path.insert(0, str(src_path))
 
-from utils import (
+from data.parser import MPDParser, RawBrickData
+from core.vocabulary import VocabularyManager
+from core.tokenizer import AtlasTokenizer
+from maths.transforms import (
     get_position_from_world_matrix,
     get_rotation_matrix_from_world_matrix,
-    setup_logging,
 )
-from rotation_matrix_to_quaternion import rotation_matrix_to_quaternion
+from maths.rotations import rotation_matrix_to_quaternion
+from utils.logging import setup_logging
 from config import Config
 
 logger = setup_logging()

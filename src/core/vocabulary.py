@@ -11,8 +11,8 @@ from typing import Dict, List, Set, Optional
 import numpy as np
 
 from config import Config
-from rotation_matrix_to_quaternion import generate_quat_chiral_rotations
-from utils import setup_logging
+from maths.rotations import generate_quat_chiral_rotations
+from utils.logging import setup_logging
 
 logger = setup_logging()
 

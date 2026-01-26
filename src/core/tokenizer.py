@@ -1,7 +1,14 @@
-from config import Config
-import logging
+import sys
+from pathlib import Path
 import json
-from utils import setup_logging
+
+# Add src to path for direct execution
+if __name__ == "__main__":
+    src_path = Path(__file__).parent.parent
+    sys.path.insert(0, str(src_path))
+
+from config import Config
+from utils.logging import setup_logging
 
 logger = setup_logging()
 
@@ -46,7 +53,9 @@ class AtlasTokenizer:
 
         return position
 
-    def _get_token_from_vocabulary(self, value: str, vocab_key: str, offset_key: str) -> int:
+    def _get_token_from_vocabulary(
+        self, value: str, vocab_key: str, offset_key: str
+    ) -> int:
         """Helper method to get token ID from vocabulary with offset.
         Args:
             value (str): Value to look up in the vocabulary.
@@ -68,9 +77,10 @@ class AtlasTokenizer:
             token_id: int = vocab_dict.get(value, None)
 
         if token_id is None:
-            logger.warning(f"Value {value} not found in vocabulary for key {vocab_key}.")
+            logger.warning(
+                f"Value {value} not found in vocabulary for key {vocab_key}."
+            )
             return unknown_token_id
-
 
         final_token_id: int = token_id + offset
         logger.debug(f"Value {value} maps to token ID {final_token_id}.")
@@ -86,9 +96,7 @@ class AtlasTokenizer:
         """
         logger.debug(f"Converting brick ID {brick_id} to token ID.")
         token_id = self._get_token_from_vocabulary(
-            value=brick_id,
-            vocab_key="parts",
-            offset_key="parts"
+            value=brick_id, vocab_key="parts", offset_key="parts"
         )
 
         return token_id
@@ -102,9 +110,7 @@ class AtlasTokenizer:
         """
         logger.debug(f"Converting color ID {color_id} to token ID.")
         token_id = self._get_token_from_vocabulary(
-            value=color_id,
-            vocab_key="colors",
-            offset_key="colors"
+            value=color_id, vocab_key="colors", offset_key="colors"
         )
 
         return token_id
