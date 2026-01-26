@@ -56,7 +56,7 @@ class DatasetBuilder:
             config_path: Path to the atlas_config.json file.
         """
         self.vocab_manager = VocabularyManager(config_path)
-        self.tokenizer = AtlasTokenizer(config_path)
+        self.tokenizer = AtlasTokenizer()
         self.global_max_distance = 0.0
         self.all_brick_ids: Set[str] = set()
         self.all_colors: Set[int] = set()
@@ -106,20 +106,19 @@ class DatasetBuilder:
             self.all_brick_ids.update(new_brick_ids)
             self.all_colors.update(new_colors)
 
-            # convert positions to bins
-            self.tokenize_positions()
-
-
             # Update vocabulary incrementally
             self._update_vocabulary(new_brick_ids, new_colors)
+
+            # Tokenize all brick attributes (positions, IDs, colors)
+            self.tokenize_brick_data()
 
         logger.info("Dataset processing complete.\n")
         logger.info(f"Total unique parts: {self.vocab_manager.get_parts_count()}")
         logger.info(f"Total unique colors: {self.vocab_manager.get_colors_count()}")
         logger.info(f"Total vocabulary size: {self.vocab_manager.get_vocab_size()}")
 
-        if self.quat_data:
-            logger.debug(f"final quat data sample: {self.quat_data[0]}")
+        if self.process_dataset:
+            logger.info(f"final quat data sample: {self.processed_data[0]}")
 
     def center_around_origin(self) -> None:
         """
@@ -275,33 +274,46 @@ class DatasetBuilder:
             self.vocab_manager.add_colors(new_colors)
             logger.debug(f"Added {len(new_colors)} new colors to vocabulary")
 
-    def tokenize_positions(self) -> None:
+    def tokenize_brick_data(self) -> None:
         """
-        Tokenize brick positions using the AtlasTokenizer.
+        Tokenize all brick attributes in one pass.
 
-        Converts continuous position values into discrete tokens based on
-        predefined bins in the AtlasTokenizer.
+        Converts quaternion brick data to processed brick data by:
+        - Tokenizing positions to discrete bins
+        - Mapping brick IDs to vocabulary indices
+        - Mapping colors to vocabulary indices
+        - Preserving rotation quaternions
         """
         if not self.quat_data:
-            logger.warning("No quaternion data to tokenize positions.")
+            logger.warning("No quaternion data to tokenize.")
             return
 
-        # Tokenize positions for each brick
-        for i, brick in enumerate(self.quat_data):
+        self.processed_data = []  # Clear previous data
+
+        for brick in self.quat_data:
+            # Tokenize position coordinates to bin IDs
             tokenized_x = self.tokenizer.position_to_bin_id(brick.position[0], "x")
             tokenized_y = self.tokenizer.position_to_bin_id(brick.position[1], "y")
             tokenized_z = self.tokenizer.position_to_bin_id(brick.position[2], "z")
-            tokenized_position = (tokenized_x, tokenized_y, tokenized_z)
+            tokenized_position = np.array([tokenized_x, tokenized_y, tokenized_z])
 
-            # Update the position in the ProcessedBrickData tuple
-            self.processed_data[i] = ProcessedBrickData(
-                brick_id=brick.brick_id,
-                position=tokenized_position,
-                rotation_quat=brick.rotation_quat,
-                color=brick.color,
+            # Map brick ID and color to vocabulary indices
+            brick_idx = self.tokenizer.brick_id_to_token(brick.brick_id)
+            color_idx = self.tokenizer.color_id_to_token(str(brick.color))
+
+            # Create processed brick data with all tokenized attributes
+            self.processed_data.append(
+                ProcessedBrickData(
+                    brick_idx=brick_idx,
+                    position=tokenized_position,
+                    rotation_quat=brick.rotation_quat,
+                    color_idx=color_idx,
+                )
             )
 
-        logger.debug("Tokenized positions to bins !")
+        logger.info(
+            f"Tokenized {len(self.processed_data)} bricks (positions, IDs, and colors)"
+        )
 
     def _update_global_max_distance(self, distance: float) -> None:
         """

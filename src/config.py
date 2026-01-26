@@ -5,7 +5,7 @@ class Config:
     """Configuration settings for the codebase."""
 
     # logging
-    LOGGING_LEVEL = logging.DEBUG
+    LOGGING_LEVEL = logging.INFO
 
     # dataset paths
     RAW_DATASET_DIR = "./mpd_files/dataset/LDraw_sets/"
