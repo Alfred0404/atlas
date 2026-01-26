@@ -1,32 +1,25 @@
 from typing import NamedTuple, List, Set
 import numpy as np
 from pathlib import Path
-import logging
 
 from MPDParser import MPDParser, RawBrickData
 from VocabularyManager import VocabularyManager
 from AtlasTokenizer import AtlasTokenizer
 
-from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
+from utils import (
+    get_position_from_world_matrix,
+    get_rotation_matrix_from_world_matrix,
+    setup_logging,
+)
 from rotation_matrix_to_quaternion import rotation_matrix_to_quaternion
-from formating.customFormatter import CustomFormatter
 from config import Config
 
-
-# Set up logging
-logger = logging.getLogger(__name__)
-logger.setLevel(Config.LOGGING_LEVEL)
-ch = logging.StreamHandler()
-ch.setLevel(Config.LOGGING_LEVEL)
-ch.setFormatter(CustomFormatter())
-logger.addHandler(ch)
-
-raw_dataset_dir = Config.RAW_DATASET_DIR
-parsed_dataset_dir = Config.PARSED_DATASET_DIR
+logger = setup_logging()
 
 
 class BrickDataQuat(NamedTuple):
-    # data with quaternion rotation representation
+    """Brick data with rotation in quaternion format"""
+
     brick_id: str
     position: np.ndarray  # shape (3,) [x,y,z]
     rotation_quat: np.ndarray  # shape (4,) [w,x,y,z]
@@ -34,7 +27,8 @@ class BrickDataQuat(NamedTuple):
 
 
 class ProcessedBrickData(NamedTuple):
-    # training ready data with brick_id and color mapped to integers
+    """Training ready data with brick_id and color mapped to integers"""
+
     brick_idx: int  # mapped unique integer for brick_id
     position: np.ndarray  # shape (3,) [x,y,z]
     rotation_quat: np.ndarray  # shape (4,) [w,x,y,z]
@@ -45,17 +39,17 @@ class DatasetBuilder:
     """Build and process LEGO datasets from MPD files.
 
     This class handles the complete pipeline from raw MPD files to processed
-    tensor data, managing vocabulary through VocabularyManager.
+    tensor data, managing vocabulary through VocabularyManager, and the tokenization process through AtlasTokenizer.
     """
 
-    def __init__(self, config_path: str):
+    def __init__(self, atlas_config_path: str):
         """
         Initialize the DatasetBuilder.
 
         Args:
-            config_path: Path to the atlas_config.json file.
+            atlas_config_path: Path to the atlas_config.json file.
         """
-        self.vocab_manager = VocabularyManager(config_path)
+        self.vocab_manager = VocabularyManager(atlas_config_path)
         self.tokenizer = AtlasTokenizer()
         self.global_max_distance = 0.0
         self.all_brick_ids: Set[str] = set()
@@ -76,7 +70,7 @@ class DatasetBuilder:
         """
         logger.info("Starting dataset processing...\n")
 
-        all_files = list(Path(raw_dataset_dir).glob("*.mpd"))
+        all_files = list(Path(Config.RAW_DATASET_DIR).glob("*.mpd"))
 
         for mpd_file in all_files:
             parser = MPDParser(str(mpd_file))

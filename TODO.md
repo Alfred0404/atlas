@@ -5,30 +5,28 @@
 ### Project Structure
 
 - [ ] Reorganize the src folder
-- [] Change the way of centering
+- [ ] Change the way of centering
 - [x] Add rotations to `atlas_config.json`
 
 ### Data Processing
 
-- [ ] Map x, y and z positions to bins idx (2 LDU is a pretty good compromise)
+- [x] Map x, y and z positions to bins idx (2 LDU is a pretty good compromise)
 
 ## to refactor
 
 - to_quaternion() method just calls another function unnecessarily (delete the method)
+- i think we can bypass the quaternion conversion, because it add complexity for no reason
 - add error handling
 - json i/o optimisation
 - hardcoded magic numbers
 - add test coverage
-- verify docstring
-- duplicate code for logging setup
-- missing `__init__.py` files
 - tests files in prod environnment
 
 ## Tokenizer Development
 
 ### Encoder
 
-- [ ] Replace true values by their corresponding idx in the vocab (tokenize the dataset)
+- [x] Replace true values by their corresponding idx in the vocab (tokenize the dataset)
 - [ ] "Flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones
 - [ ] For tokenization, compare the actual quaternion to the closest one in the list of all 24 quaternions
 
@@ -126,6 +124,12 @@ The vocab is: tokens first (0->3), then all the known brick_ids, then all y bins
 - `0.5 -0.5 -0.5 -0.5`
 
 ---
+
+## To refactor
+
+- [x] verify docstring
+- [x] duplicate code for logging setup
+- [x] missing `__init__.py` files
 
 ## Notes (Archived)
 

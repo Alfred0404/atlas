@@ -2,7 +2,7 @@ import logging
 
 
 class Config:
-    """Configuration settings for the codebase."""
+    """Configuration settings for the codebase. only storing consants for now."""
 
     # logging
     LOGGING_LEVEL = logging.INFO

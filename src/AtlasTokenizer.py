@@ -1,15 +1,9 @@
 from config import Config
 import logging
 import json
-from formating.customFormatter import CustomFormatter
+from utils import setup_logging
 
-# Set up logging
-logger = logging.getLogger(__name__)
-logger.setLevel(Config.LOGGING_LEVEL)
-ch = logging.StreamHandler()
-ch.setLevel(Config.LOGGING_LEVEL)
-ch.setFormatter(CustomFormatter())
-logger.addHandler(ch)
+logger = setup_logging()
 
 
 class AtlasTokenizer:

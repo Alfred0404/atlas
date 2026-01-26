@@ -5,8 +5,11 @@
 import logging
 
 
-# Custom log formatter with colors and detailed info
 class CustomFormatter(logging.Formatter):
+    """Custom log formatter with colors and detailed info.
+    Formats log messages with filename, line number, timestamp, and message.
+    Different log levels have different colors for better visibility.
+    """
 
     # ANSI escape codes for colors
     grey = "\x1b[38;20m"
@@ -29,8 +32,13 @@ class CustomFormatter(logging.Formatter):
         logging.CRITICAL: bold_red + format + reset,
     }
 
-    # Override format method to use different formats based on log level
     def format(self, record):
+        """Format log record based on its level.
+        Args:
+            record (logging.LogRecord): Log record to format.
+        Returns:
+            str: Formatted log message."""
+
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt, datefmt="%H:%M:%S")
         return formatter.format(record)

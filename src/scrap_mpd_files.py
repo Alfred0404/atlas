@@ -5,21 +5,13 @@ Downloads official LEGO set files in LDraw format.
 
 import os
 import time
-import logging
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-from formating.customFormatter import CustomFormatter
-from config import Config
+from utils import setup_logging
 
-# Set up logging
-logger = logging.getLogger(__name__)
-logger.setLevel(Config.LOGGING_LEVEL)
-ch = logging.StreamHandler()
-ch.setLevel(Config.LOGGING_LEVEL)
-ch.setFormatter(CustomFormatter())
-logger.addHandler(ch)
+logger = setup_logging()
 
 
 def download_file(url: str, save_path: str) -> bool:

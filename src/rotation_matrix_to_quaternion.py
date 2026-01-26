@@ -1,22 +1,9 @@
 import numpy as np
-import logging
 from scipy.spatial.transform import Rotation as R
-from formating.customFormatter import CustomFormatter
-from config import Config
 
+from utils import setup_logging
 
-# Set up logging
-# --------------------------------
-logger = logging.getLogger(__name__)
-logger.setLevel(Config.LOGGING_LEVEL)
-
-# create console handler with CustomFormatter
-ch = logging.StreamHandler()
-ch.setLevel(Config.LOGGING_LEVEL)
-ch.setFormatter(CustomFormatter())
-
-logger.addHandler(ch)
-# --------------------------------
+logger = setup_logging()
 
 
 def rotation_matrix_to_quaternion(rotation_matrix: np.ndarray) -> np.ndarray:

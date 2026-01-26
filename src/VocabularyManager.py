@@ -6,22 +6,15 @@ without storing continuous variables (rotations, positions) in memory.
 """
 
 import json
-import logging
 from pathlib import Path
 from typing import Dict, List, Set, Optional
 import numpy as np
 
-from formating.customFormatter import CustomFormatter
 from config import Config
 from rotation_matrix_to_quaternion import generate_quat_chiral_rotations
+from utils import setup_logging
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(Config.LOGGING_LEVEL)
-ch = logging.StreamHandler()
-ch.setLevel(Config.LOGGING_LEVEL)
-ch.setFormatter(CustomFormatter())
-logger.addHandler(ch)
+logger = setup_logging()
 
 
 class VocabularyManager:
@@ -32,14 +25,14 @@ class VocabularyManager:
     vocabulary-related operations. Rotations are calculated on-the-fly and not stored.
     """
 
-    def __init__(self, config_path: str):
+    def __init__(self, atlas_config_path: str):
         """
         Initialize the VocabularyManager.
 
         Args:
-            config_path: Path to the atlas_config.json file.
+            atlas_config_path: Path to the atlas_config.json file.
         """
-        self.config_path = Path(config_path)
+        self.config_path = Path(atlas_config_path)
         self.config_data: Dict = {}
         self._load_or_initialize_config()
 
@@ -83,13 +76,13 @@ class VocabularyManager:
             "version": "1.0",
             "spatial": {"l_min": -1000, "l_max": 1000, "step": 2, "num_bins": 1000},
             "offsets": {
-                "special": 0, # 4 special tokens
-                "rotations": 4, # 24 rotations
-                "positions_x": 28, # 1000 position bins
-                "positions_y": 1028, # 1000 position bins
-                "positions_z": 2028, # 1000 position bins
-                "colors": 3028, # starting after positions
-                "parts": 3128, # starting after colors
+                "special": 0,  # 4 special tokens
+                "rotations": 4,  # 24 rotations
+                "positions_x": 28,  # 1000 position bins
+                "positions_y": 1028,  # 1000 position bins
+                "positions_z": 2028,  # 1000 position bins
+                "colors": 3028,  # starting after positions
+                "parts": 3128,  # starting after colors
             },
             "vocabulary": {
                 "special": {"PAD": 0, "SOS": 1, "EOS": 2, "UNK": 3},
