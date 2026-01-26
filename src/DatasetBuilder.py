@@ -253,6 +253,7 @@ class DatasetBuilder:
         # Get unique colors
         unique_colors = set(brick.color for brick in self.quat_data)
         logger.debug(f"Collected {len(unique_colors)} unique colors from current file.")
+
         return unique_colors
 
     def _update_vocabulary(self, new_brick_ids: Set[str], new_colors: Set[int]) -> None:
