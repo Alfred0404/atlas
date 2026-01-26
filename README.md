@@ -430,3 +430,32 @@ The current dataset is composed of the LDraw base models (sorted by theme), and 
 <p align="center">
 	<img src="https://raw.githubusercontent.com/catppuccin/catppuccin/main/assets/footers/gray0_ctp_on_line.svg?sanitize=true" />
 </p>
+
+
+[contributors-shield]: https://img.shields.io/github/contributors/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[contributors-url]: https://github.com/alfred0404/lightseek-ocr/graphs/contributors
+
+<!-- Forks -->
+
+[forks-shield]: https://img.shields.io/github/forks/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[forks-url]: https://github.com/alfred0404/lightseek-ocr/network/members
+
+<!-- Stars -->
+
+[stars-shield]: https://img.shields.io/github/stars/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[stars-url]: https://github.com/alfred0404/lightseek-ocr/stargazers
+
+<!-- Issues -->
+
+[issues-shield]: https://img.shields.io/github/issues/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[issues-url]: https://github.com/alfred0404/lightseek-ocr/issues
+
+<!-- License -->
+
+[license-shield]: https://img.shields.io/github/license/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[license-url]: https://github.com/alfred0404/lightseek-ocr/blob/master/LICENSE.txt
+
+<!-- Linkedin -->
+
+[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
+[linkedin-url]: https://linkedin.com/in/alfred-de-vulpian

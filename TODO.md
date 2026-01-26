@@ -4,18 +4,19 @@
 
 ### Project Structure
 
-- [ ] Reorganize the src folder
+- [x] Reorganize the src folder
 - [ ] Change the way of centering
 - [x] Add rotations to `atlas_config.json`
 
 ### Data Processing
 
 - [x] Map x, y and z positions to bins idx (2 LDU is a pretty good compromise)
+- [ ] remove quaternion conversion
+- [ ] add rotation matrix similarity mapping to map rotation to ids
 
 ## to refactor
 
 - to_quaternion() method just calls another function unnecessarily (delete the method)
-- i think we can bypass the quaternion conversion, because it add complexity for no reason
 - add error handling
 - json i/o optimisation
 - hardcoded magic numbers
