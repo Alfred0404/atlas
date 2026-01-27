@@ -8,7 +8,7 @@ if __name__ == "__main__":
     src_path = Path(__file__).parent.parent
     sys.path.insert(0, str(src_path))
 
-from utils.logging import setup_logging
+from ..utils.logging import setup_logging
 
 logger = setup_logging()
 
@@ -45,6 +45,36 @@ def generate_chiral_rotation_matrices() -> list[np.ndarray]:
         logger.info(f"ID {i:02d} | Matrix:\n{mat}")
 
     return unique_matrices
+
+
+def find_closest_rotation_matrix(
+    input_matrix: np.ndarray, reference_matrices: list[np.ndarray]
+) -> int:
+    """Find the index of the closest rotation matrix from a list of reference matrices, using Frobenius norm.
+    Args:
+        input_matrix (np.ndarray): The input rotation matrix of shape (3, 3).
+        reference_matrices (list[np.ndarray]): List of reference rotation matrices of shape (3, 3).
+    Returns:
+        int: Index of the closest rotation matrix in the reference list.
+    """
+
+    differences = reference_matrices - input_matrix
+    logger.debug(f"Input matrix shape: {input_matrix.shape}")
+    logger.debug(f"Reference matrices shape: {reference_matrices.shape}")
+    logger.debug(f"Differences shape: {differences.shape}")
+    
+    squared_differences = np.square(differences)
+    logger.debug(f"Squared differences shape: {squared_differences.shape}")
+    
+    distances = np.sum(squared_differences, axis=(1, 2))
+    logger.debug(f"Frobenius norm distances shape: {distances.shape}")
+    logger.debug(f"Distance values: {distances}")
+    
+    min_index = int(np.argmin(distances))
+    min_distance = np.min(distances)
+    logger.info(f"Closest rotation: index={min_index}, distance={min_distance:.6f}")
+    
+    return min_index
 
 
 if __name__ == "__main__":

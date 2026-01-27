@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Dict, List, Set, Optional
 import numpy as np
 
-from config import Config
-from maths.rotations import generate_chiral_rotation_matrices
-from utils.logging import setup_logging
+from ..config import Config
+from ..maths.rotations import generate_chiral_rotation_matrices
+from ..utils.logging import setup_logging
 
 logger = setup_logging()
 

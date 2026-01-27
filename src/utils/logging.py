@@ -1,9 +1,9 @@
 def setup_logging():
     """Set up and return a logger with custom formatting."""
-    
+
     import logging
-    from formating.customFormatter import CustomFormatter
-    from config import Config
+    from ..formating.customFormatter import CustomFormatter
+    from ..config import Config
 
     logger = logging.getLogger("atlas_logger")
 

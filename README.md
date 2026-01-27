@@ -329,30 +329,98 @@ write_mpd_file(
 
 ## Testing
 
-The project includes comprehensive test suites:
+The project uses **pytest** for comprehensive test coverage across all components.
 
 ### Running Tests
 
 ```bash
-# Run vocabulary manager tests
-python tests/test_vocabulary.py
+# Run all tests
+pytest
 
-# Run integration tests
-python tests/test_integration.py
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/test_rotations.py
+pytest tests/test_vocabulary.py
+pytest tests/test_integration.py
+
+# Run specific test function
+pytest tests/test_vocabulary.py::test_add_part
+
+# Run with coverage report
+pytest --cov=src --cov-report=html
 ```
 
-### Test Coverage
+### Test Structure
 
-- **test_vocabulary.py:** Unit tests for `VocabularyManager` functionality
-  - Adding/retrieving parts and colors
-  - Special token handling
-  - Rotation index calculation
-  - Vocabulary size management
+The test suite is organized into three main files:
 
-- **test_integration.py:** Integration tests for `DatasetBuilder` with `VocabularyManager`
-  - End-to-end workflow validation
-  - Vocabulary updates during processing
-  - Config file structure verification
+#### 1. **test_rotations.py** - Rotation System Tests
+
+Tests the 24 chiral rotation matrices generation and matching:
+
+- `test_chiral_matrices_generation()` - Validates generation of 24 unique rotation matrices
+- `test_closest_rotation_matrix()` - Tests rotation matching algorithm with exact and perturbed matrices
+
+#### 2. **test_vocabulary.py** - Vocabulary Manager Unit Tests
+
+Comprehensive tests for vocabulary management:
+
+- `test_add_part()` - Adding parts and handling duplicates
+- `test_add_color()` - Adding colors and handling duplicates
+- `test_add_multiple_parts()` - Batch part additions
+- `test_get_part_index()` - Retrieving part indices with UNK fallback
+- `test_special_tokens()` - Special token indices (PAD, SOS, EOS, UNK)
+- `test_rotation_index()` - Rotation matrix to index mapping
+- `test_vocabulary_size()` - Vocabulary size calculations
+
+#### 3. **test_integration.py** - DatasetBuilder Integration Tests
+
+End-to-end workflow validation:
+
+- `test_dataset_builder_initialization()` - Builder initialization
+- `test_vocabulary_manager_initialization()` - Vocabulary setup validation
+- `test_manual_vocabulary_updates()` - Adding parts and colors
+- `test_brick_data_collection()` - Extracting unique brick IDs and colors
+- `test_id_mapping()` - Tokenization and ID mapping
+- `test_rotation_index_calculation()` - Rotation processing
+- `test_config_file_structure()` - Configuration file validation
+
+### Test Fixtures
+
+Tests use pytest fixtures for clean, isolated test environments:
+
+- `tmp_path` - Temporary directories for config files (auto-cleanup)
+- `test_config_path` - Isolated vocabulary configuration
+- `vocab_manager` - Pre-configured VocabularyManager instance
+- `dataset_builder` - Pre-configured DatasetBuilder instance
+
+### Continuous Testing
+
+The test suite ensures:
+
+- **Idempotency:** Tests can run multiple times with consistent results
+- **Isolation:** Each test runs independently without side effects
+- **Cleanup:** Temporary files automatically removed after tests
+- **Coverage:** All critical paths and edge cases covered
+
+### Example Test Output
+
+```bash
+$ pytest -v
+================================ test session starts ================================
+tests/test_rotations.py::test_chiral_matrices_generation PASSED              [ 11%]
+tests/test_rotations.py::test_closest_rotation_matrix PASSED                 [ 22%]
+tests/test_vocabulary.py::test_add_part PASSED                               [ 33%]
+tests/test_vocabulary.py::test_add_color PASSED                              [ 44%]
+tests/test_vocabulary.py::test_add_multiple_parts PASSED                     [ 55%]
+tests/test_vocabulary.py::test_get_part_index PASSED                         [ 66%]
+tests/test_vocabulary.py::test_special_tokens PASSED                         [ 77%]
+tests/test_vocabulary.py::test_rotation_index PASSED                         [ 88%]
+tests/test_vocabulary.py::test_vocabulary_size PASSED                        [100%]
+================================ 9 passed in 0.42s ==================================
+```
 
 ## Configuration
 

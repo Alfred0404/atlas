@@ -4,31 +4,23 @@
 
 ### Project Structure
 
-- [x] Reorganize the src folder
 - [ ] Change the way of centering
-- [x] Add rotations to `atlas_config.json`
 
 ### Data Processing
 
-- [x] Map x, y and z positions to bins idx (2 LDU is a pretty good compromise)
-- [ ] remove quaternion conversion
-- [ ] add rotation matrix similarity mapping to map rotation to ids
+### to refactor
 
-## to refactor
-
-- add error handling
 - json i/o optimisation
 - hardcoded magic numbers
 - add test coverage
 - tests files in prod environnment
 
-## Tokenizer Development
+### Tokenizer Development
 
 ### Encoder
 
-- [x] Replace true values by their corresponding idx in the vocab (tokenize the dataset)
+- [ ] add rotation matrix similarity mapping to map rotation to ids
 - [ ] "Flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones
-- [ ] For tokenization, compare the actual quaternion to the closest one in the list of all 24 quaternions
 
 ### Decoder
 
@@ -43,8 +35,15 @@
 
 ## Completed Tasks
 
+### Project Structure
+
+- [x] Reorganize the src folder
+- [x] Add rotations to `atlas_config.json`
+
 ### Data Preprocessing
 
+- [x] Map x, y and z positions to bins idx (2 LDU is a pretty good compromise)
+- [x] remove quaternion conversion
 - [x] Add conversion from rotation matrix to quaternions (with $q_w \geq 0$)
 - [x] First put all sets around $(0, 0, 0)$
 - [x] Split responsibility between DatasetBuilder and MPDParser
@@ -59,12 +58,23 @@
 - [x] Map all known colors ids to vocab idx
 - [x] Maps idx to the closest most frequent rotations (0, 90, 180, etc. on all 3 axes xyz)
 
+### Encoder
+
+- [x] Replace true values by their corresponding idx in the vocab (tokenize the dataset)
+
 ### Model Architecture
 
 - [x] Start to think about the actual model architecture
 - [x] Sort all the bricks in a deterministic way (so the model learn 'syntax')
 
-## Research & References
+### To refactor
+
+- [x] add error handling
+- [x] verify docstring
+- [x] duplicate code for logging setup
+- [x] missing `__init__.py` files
+
+### Research & References
 
 ### Transformer Architecture
 
@@ -124,12 +134,6 @@ The vocab is: tokens first (0->3), then all the known brick_ids, then all y bins
 - `0.5 -0.5 -0.5 -0.5`
 
 ---
-
-## To refactor
-
-- [x] verify docstring
-- [x] duplicate code for logging setup
-- [x] missing `__init__.py` files
 
 ## Notes (Archived)
 

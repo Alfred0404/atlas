@@ -1,7 +1,7 @@
 """Data processing: parsing and dataset building."""
 
-from data.parser import MPDParser, RawBrickData
-from data.builder import DatasetBuilder, ProcessedBrickData
+from .parser import MPDParser, RawBrickData
+from .builder import DatasetBuilder, ProcessedBrickData
 
 __all__ = [
     "MPDParser",
