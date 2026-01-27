@@ -15,20 +15,10 @@ from maths.transforms import (
     get_position_from_world_matrix,
     get_rotation_matrix_from_world_matrix,
 )
-from maths.rotations import rotation_matrix_to_quaternion
 from utils.logging import setup_logging
 from config import Config
 
 logger = setup_logging()
-
-
-class BrickDataQuat(NamedTuple):
-    """Brick data with rotation in quaternion format"""
-
-    brick_id: str
-    position: np.ndarray  # shape (3,) [x,y,z]
-    rotation_quat: np.ndarray  # shape (4,) [w,x,y,z]
-    color: int
 
 
 class ProcessedBrickData(NamedTuple):
@@ -36,7 +26,7 @@ class ProcessedBrickData(NamedTuple):
 
     brick_idx: int  # mapped unique integer for brick_id
     position: np.ndarray  # shape (3,) [x,y,z]
-    rotation_quat: np.ndarray  # shape (4,) [w,x,y,z]
+    rotation_matrix: np.ndarray  # shape (3, 3)
     color_idx: int  # mapped unique integer for color
 
 
@@ -62,7 +52,6 @@ class DatasetBuilder:
 
         # Data storage for processing individual files
         self.raw_data: List[RawBrickData] = []
-        self.quat_data: List[BrickDataQuat] = []
         self.processed_data: List[ProcessedBrickData] = []
         self.final_tensor = None
 
@@ -78,9 +67,7 @@ class DatasetBuilder:
         all_files = list(Path(Config.RAW_DATASET_DIR).glob("*.mpd"))
 
         if not all_files:
-            logger.error(
-                f"No MPD files found in directory: {Config.RAW_DATASET_DIR}"
-            )
+            logger.error(f"No MPD files found in directory: {Config.RAW_DATASET_DIR}")
             return
 
         for mpd_file in all_files:
@@ -117,14 +104,15 @@ class DatasetBuilder:
         self.raw_data = parser.flatten(first_submodel_key, np.eye(4))
 
         if not self.raw_data:
-            logger.warning(f"No raw data extracted from {mpd_file_path}. Skipping file.")
+            logger.warning(
+                f"No raw data extracted from {mpd_file_path}. Skipping file."
+            )
             return False
 
         self.raw_data = parser.sort_bricks_by_position()
 
         # Transform data
         self.center_around_origin()
-        self.to_quat_representation()
 
         logger.info(f"Transformation completed for {mpd_file_path}\n")
 
@@ -187,36 +175,6 @@ class DatasetBuilder:
         for brick in self.raw_data:
             brick.world_matrix[:3, 3] -= snapped_offset
 
-    def to_quat_representation(self) -> List[BrickDataQuat]:
-        """
-        Convert raw brick data to quaternion-based representation.
-
-        Iterates over all entries in self.raw_data (4x4 world transformation matrices)
-        and for each brick:
-        * Extracts the position from the world matrix
-        * Extracts the rotation matrix from the world matrix
-        * Converts the rotation matrix to a quaternion
-        * Creates a BrickDataQuat instance
-
-        Returns:
-            List of BrickDataQuat objects with quaternion rotations.
-        """
-        self.quat_data = []  # Clear previous data
-        for brick in self.raw_data:
-            position = get_position_from_world_matrix(brick.world_matrix)
-            rotation_matrix = get_rotation_matrix_from_world_matrix(brick.world_matrix)
-            rotation_quat = rotation_matrix_to_quaternion(rotation_matrix)
-
-            brick_quat_data = BrickDataQuat(
-                brick_id=brick.brick_id,
-                position=position,
-                rotation_quat=rotation_quat,
-                color=brick.color,
-            )
-
-            self.quat_data.append(brick_quat_data)
-        return self.quat_data
-
     def calculate_max_brick_distance(self) -> float:
         """
         Calculate the maximum distance between a brick and the origin.
@@ -245,17 +203,17 @@ class DatasetBuilder:
 
     def collect_brick_ids(self) -> Set[str]:
         """
-        Collect unique brick IDs from current quaternion data.
+        Collect unique brick IDs from current raw data.
 
         Returns:
             Set of unique brick identifiers from the current file.
         """
-        if not self.quat_data:
-            logger.warning("No quaternion data to collect brick IDs.")
+        if not self.raw_data:
+            logger.warning("No raw data to collect brick IDs.")
             return set()
 
         # Get unique brick IDs
-        unique_brick_ids = set(brick.brick_id for brick in self.quat_data)
+        unique_brick_ids = set(brick.brick_id for brick in self.raw_data)
         logger.debug(
             f"Collected {len(unique_brick_ids)} unique brick IDs from current file."
         )
@@ -263,17 +221,17 @@ class DatasetBuilder:
 
     def collect_brick_colors(self) -> Set[int]:
         """
-        Collect unique brick colors from current quaternion data.
+        Collect unique brick colors from current raw data.
 
         Returns:
             Set of unique color codes from the current file.
         """
-        if not self.quat_data:
-            logger.warning("No quaternion data to collect brick colors.")
+        if not self.raw_data:
+            logger.warning("No raw data to collect brick colors.")
             return set()
 
         # Get unique colors
-        unique_colors = set(brick.color for brick in self.quat_data)
+        unique_colors = set(brick.color for brick in self.raw_data)
         logger.debug(f"Collected {len(unique_colors)} unique colors from current file.")
 
         return unique_colors
@@ -301,23 +259,27 @@ class DatasetBuilder:
         """
         Tokenize all brick attributes in one pass.
 
-        Converts quaternion brick data to processed brick data by:
+        Converts raw brick data to processed brick data by:
         - Tokenizing positions to discrete bins
         - Mapping brick IDs to vocabulary indices
         - Mapping colors to vocabulary indices
-        - Preserving rotation quaternions
+        - Extracting rotation matrices
         """
-        if not self.quat_data:
-            logger.warning("No quaternion data to tokenize.")
+        if not self.raw_data:
+            logger.warning("No raw data to tokenize.")
             return
 
         self.processed_data = []  # Clear previous data
 
-        for brick in self.quat_data:
+        for brick in self.raw_data:
+            # Extract position and rotation from world matrix
+            position = get_position_from_world_matrix(brick.world_matrix)
+            rotation_matrix = get_rotation_matrix_from_world_matrix(brick.world_matrix)
+
             # Tokenize position coordinates to bin IDs
-            tokenized_x = self.tokenizer.position_to_bin_id(brick.position[0], "x")
-            tokenized_y = self.tokenizer.position_to_bin_id(brick.position[1], "y")
-            tokenized_z = self.tokenizer.position_to_bin_id(brick.position[2], "z")
+            tokenized_x = self.tokenizer.position_to_bin_id(position[0], "x")
+            tokenized_y = self.tokenizer.position_to_bin_id(position[1], "y")
+            tokenized_z = self.tokenizer.position_to_bin_id(position[2], "z")
             tokenized_position = np.array([tokenized_x, tokenized_y, tokenized_z])
 
             # Map brick ID and color to vocabulary indices
@@ -329,7 +291,7 @@ class DatasetBuilder:
                 ProcessedBrickData(
                     brick_idx=brick_idx,
                     position=tokenized_position,
-                    rotation_quat=brick.rotation_quat,
+                    rotation_matrix=rotation_matrix,
                     color_idx=color_idx,
                 )
             )
@@ -354,16 +316,17 @@ class DatasetBuilder:
         Convert ProcessedBrickData to a numpy tensor.
 
         Creates a tensor by concatenating brick attributes (index, position,
-        rotation quaternion, and color index) for each brick.
+        rotation matrix flattened, and color index) for each brick.
         """
 
         for brick in self.processed_data:
             # create the tensor for each brick by unpacking its attributes
+            # flatten rotation matrix from (3,3) to (9,)
             brick_tensor = np.concatenate(
                 (
                     [brick.brick_idx],
                     brick.position,
-                    brick.rotation_quat,
+                    brick.rotation_matrix.flatten(),
                     [brick.color_idx],
                 )
             )

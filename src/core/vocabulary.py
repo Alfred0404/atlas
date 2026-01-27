@@ -11,7 +11,7 @@ from typing import Dict, List, Set, Optional
 import numpy as np
 
 from config import Config
-from maths.rotations import generate_quat_chiral_rotations
+from maths.rotations import generate_chiral_rotation_matrices
 from utils.logging import setup_logging
 
 logger = setup_logging()
@@ -103,14 +103,15 @@ class VocabularyManager:
         Generate the 24 chiral rotations vocabulary.
 
         Returns:
-            Dictionary mapping rotation quaternion strings to indices.
+            Dictionary mapping rotation matrix strings to indices.
         """
-        rotations = generate_quat_chiral_rotations()
+        rotations = generate_chiral_rotation_matrices()
         rotation_vocab = {}
 
-        for idx, quat in enumerate(rotations):
-            # Create a unique key for each rotation quaternion
-            key = f"[{quat[0]:.6f},{quat[1]:.6f},{quat[2]:.6f},{quat[3]:.6f}]"
+        for idx, rot_matrix in enumerate(rotations):
+            # Create a unique key for each rotation matrix
+            # Flatten the matrix and create a string representation
+            key = "[" + ",".join(f"{val:.6f}" for val in rot_matrix.flatten()) + "]"
             rotation_vocab[key] = idx
 
         logger.debug(f"Generated {len(rotation_vocab)} rotation entries")
@@ -252,31 +253,28 @@ class VocabularyManager:
         """
         return self.config_data["vocabulary"]["colors"].get(str(color), 3)
 
-    def get_rotation_index(self, quaternion: np.ndarray) -> int:
+    def get_rotation_index(self, rotation_matrix: np.ndarray) -> int:
         """
         Get the index of the closest matching rotation.
 
         This method calculates which of the 24 chiral rotations best matches
-        the given quaternion.
+        the given rotation matrix.
 
         Args:
-            quaternion: Rotation quaternion [w, x, y, z].
+            rotation_matrix: Rotation matrix of shape (3, 3).
 
         Returns:
             The index of the closest rotation (0-23).
         """
-        rotations = generate_quat_chiral_rotations()
+        rotations = generate_chiral_rotation_matrices()
 
-        # Find the closest rotation by comparing quaternion distance
+        # Find the closest rotation by comparing Frobenius norm
         min_distance = float("inf")
         best_idx = 0
 
-        for idx, rot_quat in enumerate(rotations):
-            # Quaternion distance (accounting for q and -q being equivalent)
-            dist = min(
-                np.linalg.norm(quaternion - rot_quat),
-                np.linalg.norm(quaternion + rot_quat),
-            )
+        for idx, rot_mat in enumerate(rotations):
+            # Matrix distance using Frobenius norm
+            dist = np.linalg.norm(rotation_matrix - rot_mat, "fro")
 
             if dist < min_distance:
                 min_distance = dist
