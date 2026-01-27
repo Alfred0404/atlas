@@ -43,27 +43,30 @@ class VocabularyManager:
         Creates the config file with default structure if it doesn't exist.
         Ensures rotations are populated even in existing configs.
         """
-        if self.config_path.exists():
-            try:
-                with open(self.config_path, "r", encoding="utf-8") as f:
-                    self.config_data = json.load(f)
-                logger.info(f"Loaded configuration from {self.config_path}")
 
-                # Check if rotations are empty and populate them if needed
-                if not self.config_data.get("vocabulary", {}).get("rotations"):
-                    logger.info("Rotations empty in existing config. Populating...")
-                    rotations = self._generate_rotation_vocabulary()
-                    self.config_data["vocabulary"]["rotations"] = rotations
-                    self.config_data["offsets"]["rotations"] = 4
-                    self.config_data["offsets"]["colors"] = 4 + len(rotations)
-                    self._save_config()
-                    logger.info("Rotations populated and config updated")
-
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse {self.config_path}: {e}")
-                self._initialize_default_config()
-        else:
+        if not self.config_path.exists():
             logger.warning(f"{self.config_path} does not exist. Creating a new config.")
+            self._initialize_default_config()
+            self._save_config()
+            return
+
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f:
+                self.config_data = json.load(f)
+            logger.info(f"Loaded configuration from {self.config_path}")
+
+            # Check if rotations are empty and populate them if needed
+            if not self.config_data.get("vocabulary", {}).get("rotations"):
+                logger.info("Rotations empty in existing config. Populating...")
+                rotations = self._generate_rotation_vocabulary()
+                self.config_data["vocabulary"]["rotations"] = rotations
+                self.config_data["offsets"]["rotations"] = 4
+                self.config_data["offsets"]["colors"] = 4 + len(rotations)
+                self._save_config()
+                logger.info("Rotations populated and config updated")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse {self.config_path}: {e}")
             self._initialize_default_config()
             self._save_config()
 
@@ -115,6 +118,7 @@ class VocabularyManager:
 
     def _save_config(self) -> None:
         """Save the current configuration to the JSON file."""
+
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(self.config_data, f, indent=2)
         logger.debug(f"Configuration saved to {self.config_path}")
@@ -129,7 +133,12 @@ class VocabularyManager:
         Returns:
             The index assigned to the part.
         """
-        parts = self.config_data["vocabulary"]["parts"]
+        try:
+            parts = self.config_data["vocabulary"]["parts"]
+        except KeyError:
+            logger.warning("Parts vocabulary missing, initializing.")
+            parts = {}
+            self.config_data["vocabulary"]["parts"] = parts
 
         if part_id not in parts:
             # Calculate the new index based on current vocab size
@@ -158,9 +167,12 @@ class VocabularyManager:
         Returns:
             Dictionary mapping part IDs to their indices.
         """
+
         result = {}
+
         for part_id in sorted(part_ids):  # Sort for consistency
             result[part_id] = self.add_part(part_id)
+
         return result
 
     def add_color(self, color: int) -> int:
@@ -173,7 +185,14 @@ class VocabularyManager:
         Returns:
             The index assigned to the color.
         """
-        colors = self.config_data["vocabulary"]["colors"]
+
+        try:
+            colors = self.config_data["vocabulary"]["colors"]
+        except KeyError:
+            logger.warning("Colors vocabulary missing, initializing.")
+            colors = {}
+            self.config_data["vocabulary"]["colors"] = colors
+
         color_key = str(color)
 
         if color_key not in colors:
@@ -203,8 +222,10 @@ class VocabularyManager:
             Dictionary mapping color IDs (as strings) to their indices.
         """
         result = {}
+
         for color in sorted(color_ids):  # Sort for consistency
             result[str(color)] = self.add_color(color)
+
         return result
 
     def get_part_index(self, part_id: str) -> int:

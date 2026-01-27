@@ -65,7 +65,7 @@ def write_mpd_file(
 
 if __name__ == "__main__":
     # Example usage with mpd_parser
-    from MPDParser import MPDParser
+    from src.data.parser import MPDParser
 
     mpd_file_path = "./mpd_files/test.mpd"
     parser = MPDParser(mpd_file_path)

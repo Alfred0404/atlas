@@ -31,6 +31,7 @@ class AtlasTokenizer:
             int: Corresponding bin ID.
         """
         logger.debug(f"Converting position {position} on axis {axis} to bin ID.")
+
         if Config.PRECISION == 0:
             logger.error("Config.PRECISION is zero, cannot perform division.")
             raise ValueError("Config.PRECISION cannot be zero.")
@@ -51,6 +52,7 @@ class AtlasTokenizer:
             float: Corresponding real-valued position.
         """
         logger.debug(f"Converting bin ID {bin_id} on axis {axis} back to position.")
+
         position = (
             bin_id - Config.OFFSETS[f"positions_{axis}"]
         ) * Config.PRECISION + Config.MIN_POSITION
