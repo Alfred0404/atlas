@@ -22,19 +22,21 @@ def test_chiral_matrices_generation():
 
 def test_closest_rotation_matrix():
     """Validate the closest rotation matrix identification."""
-    matrices = generate_chiral_rotation_matrices()
-    matrices_array = np.array(matrices)  # Convert list to numpy array
+    matrix_a = np.array([[3, 5, 2], [4, 1, 3], [2, 1, 1]])
+    matrix_c = np.array([[2, 6, 1], [3, 1, 0], [2, 1, 0]])
+    input_matrix = np.array([[2, 6, 1], [3, 0, 0], [3, 1, 1]])
+
+    # we know after doing the calculation manually that matrix_c is closer to input_matrix than matrix_a
 
     # Test known matrix
-    test_matrix = matrices_array[5]
-    closest_index = find_closest_rotation_matrix(test_matrix, matrices_array)
-    assert closest_index == 5, f"Expected index 5, got {closest_index}"
+    closest_index = find_closest_rotation_matrix(input_matrix, reference_matrices=[matrix_a, matrix_c])
+    assert closest_index == 1, f"Expected index 1, got {closest_index}"
 
     # Test a slightly perturbed matrix
-    perturbed_matrix = test_matrix + np.random.normal(0, 0.01, size=test_matrix.shape)
+    perturbed_matrix = input_matrix + np.random.normal(0, 0.01, size=input_matrix.shape)
     closest_index_perturbed = find_closest_rotation_matrix(
-        perturbed_matrix, matrices_array
+        perturbed_matrix, reference_matrices=[matrix_a, matrix_c]
     )
     assert (
-        closest_index_perturbed == 5
-    ), f"Expected index 5 for perturbed matrix, got {closest_index_perturbed}"
+        closest_index_perturbed == 1
+    ), f"Expected index 1 for perturbed matrix, got {closest_index_perturbed}"

@@ -1,78 +1,102 @@
-# TODO
+# Todo
 
 ## High Priority
 
-### Project Structure
+### In Progress
 
-- [ ] Change the way of centering
+### Not Done
 
-### Data Processing
+- [ ] 🔴 json i/o optimisation ([builder.py](src/data/builder.py), [vocabulary.py](src/core/vocabulary.py))
+- [ ] 🔴 hardcoded magic numbers ([config.py](src/config.py))
+- [ ] 🟡 Change the way of centering ([builder.py](src/data/builder.py))
+- [ ] 🟡 add test coverage ([tests/](tests/))
+- [ ] 🟢 tests files in prod environnment
+- [ ] 🟢 Check how other point transformers handle positions
 
-### to refactor
+### Done
 
-- json i/o optimisation
-- hardcoded magic numbers
-- add test coverage
-- tests files in prod environnment
+- [x] add rotation matrix similarity mapping to map rotation to ids ([tokenizer.py](src/core/tokenizer.py), 2026-01-27)
 
-### Tokenizer Development
+## Encoder
 
-### Encoder
+### In Progress
 
-- [ ] add rotation matrix similarity mapping to map rotation to ids
-- [ ] "Flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones
+- [ ] "Flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones ([builder.py](src/data/builder.py))
 
-### Decoder
+### Not Done
 
-- [ ] Group tokens by blocs of 6 (group them by bricks)
-- [ ] De-binning (from bin idx to real position)
-- [ ] Snapping positions to the real grid
-- [ ] Reconstruct an output `.mpd` file, ready to be displayed in LDView
+### Done
 
-### Position Handling
+- [x] Replace true values by their corresponding idx in the vocab (tokenize the dataset) (2026-01-20)
 
-- [ ] Check how other point transformers handle positions
+## Decoder
 
-## Completed Tasks
+### In Progress
 
-### Project Structure
+### Not Done
 
-- [x] Reorganize the src folder
-- [x] Add rotations to `atlas_config.json`
+- [ ] 🟡 Group tokens by blocs of 6 (group them by bricks)
+- [ ] 🟡 De-binning (from bin idx to real position) ([tokenizer.py](src/core/tokenizer.py))
+- [ ] 🟡 Snapping positions to the real grid
+- [ ] 🟡 Reconstruct an output `.mpd` file, ready to be displayed in LDView ([mpd_writer.py](src/file_io/mpd_writer.py))
 
-### Data Preprocessing
+### Done
 
-- [x] Map x, y and z positions to bins idx (2 LDU is a pretty good compromise)
-- [x] remove quaternion conversion
-- [x] Add conversion from rotation matrix to quaternions (with $q_w \geq 0$)
-- [x] First put all sets around $(0, 0, 0)$
-- [x] Split responsibility between DatasetBuilder and MPDParser
-- [x] Optimize centering around origin
-- [x] Finish the MPDParser and the DatasetBuilder
+## Project Structure
 
-### Vocabulary Management
+### In Progress
 
-- [x] Refactor the vocabulary creation and vocab.json, to not store every position (they can be computed when needed)
-- [x] Create special tokens ([SOS], [EOS], [PAD], etc.) and map them to idx
-- [x] Map all known brick ids to vocab idx
-- [x] Map all known colors ids to vocab idx
-- [x] Maps idx to the closest most frequent rotations (0, 90, 180, etc. on all 3 axes xyz)
+### Not Done
 
-### Encoder
+### Done
 
-- [x] Replace true values by their corresponding idx in the vocab (tokenize the dataset)
+- [x] Reorganize the src folder (2026-01-15)
+- [x] Add rotations to `atlas_config.json` (2026-01-20)
+- [x] add error handling (2026-01-15)
+- [x] verify docstring (2026-01-15)
+- [x] duplicate code for logging setup (2026-01-15)
+- [x] missing `__init__.py` files (2026-01-15)
 
-### Model Architecture
+## Data Preprocessing
 
-- [x] Start to think about the actual model architecture
-- [x] Sort all the bricks in a deterministic way (so the model learn 'syntax')
+### In Progress
 
-### To refactor
+### Not Done
 
-- [x] add error handling
-- [x] verify docstring
-- [x] duplicate code for logging setup
-- [x] missing `__init__.py` files
+### Done
+
+- [x] Map x, y and z positions to bins idx (2 LDU is a pretty good compromise) (2026-01-18)
+- [x] remove quaternion conversion (2026-01-22)
+- [x] Add conversion from rotation matrix to quaternions (with $q_w \geq 0$) (2026-01-18)
+- [x] First put all sets around $(0, 0, 0)$ ([builder.py](src/data/builder.py), 2026-01-18)
+- [x] Split responsibility between DatasetBuilder and MPDParser (2026-01-16)
+- [x] Optimize centering around origin (2026-01-18)
+- [x] Finish the MPDParser and the DatasetBuilder (2026-01-16)
+
+## Vocabulary Management
+
+### In Progress
+
+### Not Done
+
+### Done
+
+- [x] Refactor the vocabulary creation and vocab.json, to not store every position (they can be computed when needed) ([vocabulary.py](src/core/vocabulary.py), 2026-01-20)
+- [x] Create special tokens ([SOS], [EOS], [PAD], etc.) and map them to idx ([atlas_config.json](atlas_config.json), 2026-01-20)
+- [x] Map all known brick ids to vocab idx (2026-01-20)
+- [x] Map all known colors ids to vocab idx (2026-01-20)
+- [x] Maps idx to the closest most frequent rotations (0, 90, 180, etc. on all 3 axes xyz) (2026-01-20)
+
+## Model Architecture
+
+### In Progress
+
+### Not Done
+
+### Done
+
+- [x] Start to think about the actual model architecture (2026-01-12)
+- [x] Sort all the bricks in a deterministic way (so the model learn 'syntax') (2026-01-18)
 
 ### Research & References
 

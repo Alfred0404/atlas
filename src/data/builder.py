@@ -26,7 +26,7 @@ class ProcessedBrickData(NamedTuple):
 
     brick_idx: int  # mapped unique integer for brick_id
     position: np.ndarray  # shape (3,) [x,y,z]
-    rotation_matrix: np.ndarray  # shape (3, 3)
+    rotation_idx: int  # rotation token ID from vocabulary
     color_idx: int  # mapped unique integer for color
 
 
@@ -286,12 +286,15 @@ class DatasetBuilder:
             brick_idx = self.tokenizer.brick_id_to_token(brick.brick_id)
             color_idx = self.tokenizer.color_id_to_token(str(brick.color))
 
+            # Tokenize rotation matrix to vocabulary index
+            rotation_idx = self.tokenizer.rotation_matrix_to_token(rotation_matrix)
+
             # Create processed brick data with all tokenized attributes
             self.processed_data.append(
                 ProcessedBrickData(
                     brick_idx=brick_idx,
                     position=tokenized_position,
-                    rotation_matrix=rotation_matrix,
+                    rotation_idx=rotation_idx,
                     color_idx=color_idx,
                 )
             )

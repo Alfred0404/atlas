@@ -58,22 +58,25 @@ def find_closest_rotation_matrix(
         int: Index of the closest rotation matrix in the reference list.
     """
 
+    reference_matrices = np.array(reference_matrices)
     differences = reference_matrices - input_matrix
     logger.debug(f"Input matrix shape: {input_matrix.shape}")
     logger.debug(f"Reference matrices shape: {reference_matrices.shape}")
     logger.debug(f"Differences shape: {differences.shape}")
-    
+
     squared_differences = np.square(differences)
     logger.debug(f"Squared differences shape: {squared_differences.shape}")
-    
-    distances = np.sum(squared_differences, axis=(1, 2))
+
+    distances = np.sum(
+        squared_differences, axis=(1, 2)
+    )  # square by element (not mat * mat)
     logger.debug(f"Frobenius norm distances shape: {distances.shape}")
     logger.debug(f"Distance values: {distances}")
-    
+
     min_index = int(np.argmin(distances))
     min_distance = np.min(distances)
-    logger.info(f"Closest rotation: index={min_index}, distance={min_distance:.6f}")
-    
+    logger.debug(f"Closest rotation: index={min_index}, distance={min_distance:.6f}")
+
     return min_index
 
 

@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import json
+import numpy as np
 
 # Add src to path for direct execution
 if __name__ == "__main__":
@@ -9,6 +10,10 @@ if __name__ == "__main__":
 
 from ..config import Config
 from ..utils.logging import setup_logging
+from ..maths.rotations import (
+    find_closest_rotation_matrix,
+    generate_chiral_rotation_matrices,
+)
 
 logger = setup_logging()
 
@@ -126,6 +131,52 @@ class AtlasTokenizer:
 
         return token_id
 
+    def rotation_matrix_to_token(self, rotation_matrix: np.ndarray) -> int:
+        """Convert a rotation matrix to its closest chiral matrix token ID.
+
+        Looks up the rotation in atlas_config.json vocabulary to ensure
+        we use the actual stored index, avoiding index mismatches.
+
+        Args:
+            rotation_matrix (np.ndarray): Rotation matrix of shape (3, 3).
+        Returns:
+            int: Corresponding token ID.
+        """
+        if not Path(Config.ATLAS_CONFIG_PATH).is_file():
+            logger.error(f"Atlas config file not found: {Config.ATLAS_CONFIG_PATH}")
+            return -1
+
+        with open(Config.ATLAS_CONFIG_PATH, "r") as f:
+            atlas_config = json.load(f)
+            rotation_vocab = atlas_config["vocabulary"]["rotations"]
+            offset = atlas_config["offsets"]["rotations"]
+
+        # Build reference matrices from the vocabulary (in the stored order)
+        reference_matrices = []
+        vocab_keys = []
+        for key, idx in sorted(rotation_vocab.items(), key=lambda x: x[1]):
+            # Parse the string key back to a matrix
+            values = [float(x) for x in key.strip("[]").split(",")]
+            matrix = np.array(values).reshape(3, 3)
+            reference_matrices.append(matrix)
+            vocab_keys.append(key)
+
+        # Find the closest rotation matrix
+        closest_index = find_closest_rotation_matrix(
+            rotation_matrix, reference_matrices
+        )
+
+        # Look up the actual vocabulary index for this rotation
+        closest_key = vocab_keys[closest_index]
+        vocab_index = rotation_vocab[closest_key]
+
+        token_id = vocab_index + offset
+        logger.debug(
+            f"Rotation matrix maps to vocab index {vocab_index}, token ID: {token_id}"
+        )
+
+        return token_id
+
 
 if __name__ == "__main__":
     tokenizer = AtlasTokenizer()
@@ -143,3 +194,10 @@ if __name__ == "__main__":
     tokenizer.brick_id_to_token("3001")
     # Convert color ID to token ID
     tokenizer.color_id_to_token("383")
+
+    # Test rotation matrix to token ID
+    test_rotation_matrix = np.array(
+        [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
+    )
+    tokenizer.rotation_matrix_to_token(test_rotation_matrix)
+    logger.info("Generated Rotations (Rotation Matrices):")
