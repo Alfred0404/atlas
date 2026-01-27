@@ -60,8 +60,9 @@ class VocabularyManager:
                 logger.info("Rotations empty in existing config. Populating...")
                 rotations = self._generate_rotation_vocabulary()
                 self.config_data["vocabulary"]["rotations"] = rotations
-                self.config_data["offsets"]["rotations"] = 4
-                self.config_data["offsets"]["colors"] = 4 + len(rotations)
+                self.config_data["offsets"]["rotations"] = Config.OFFSETS["rotations"]
+                self.config_data["offsets"]["colors"] = Config.OFFSETS["colors"]
+                self.config_data["offsets"]["parts"] = Config.OFFSETS["parts"]
                 self._save_config()
                 logger.info("Rotations populated and config updated")
 
@@ -79,13 +80,13 @@ class VocabularyManager:
             "version": "1.0",
             "spatial": {"l_min": -1000, "l_max": 1000, "step": 2, "num_bins": 1000},
             "offsets": {
-                "special": 0,  # 4 special tokens
-                "rotations": 4,  # 24 rotations
-                "positions_x": 28,  # 1000 position bins
-                "positions_y": 1028,  # 1000 position bins
-                "positions_z": 2028,  # 1000 position bins
-                "colors": 3028,  # starting after positions
-                "parts": 3128,  # starting after colors
+                "special": Config.OFFSETS["special"],  # 4 special tokens
+                "rotations": Config.OFFSETS["rotations"],  # 24 rotations
+                "positions_x": Config.OFFSETS["positions_x"],  # 1000 position bins
+                "positions_y": Config.OFFSETS["positions_y"],  # 1000 position bins
+                "positions_z": Config.OFFSETS["positions_z"],  # 1000 position bins
+                "colors": Config.OFFSETS["colors"],  # starting after positions
+                "parts": Config.OFFSETS["parts"],  # starting after colors
             },
             "vocabulary": {
                 "special": {"PAD": 0, "SOS": 1, "EOS": 2, "UNK": 3},
@@ -94,7 +95,7 @@ class VocabularyManager:
                 "colors": {},
                 # Note: positions are not stored in vocabulary because the bins can be calculated
             },
-            "vocab_size": 4 + len(rotations),
+            "vocab_size": Config.OFFSETS["parts"],
         }
         logger.info("Initialized default configuration")
 
