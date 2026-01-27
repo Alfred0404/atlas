@@ -10,7 +10,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from VocabularyManager import VocabularyManager
+from src.core.vocabulary import VocabularyManager
 from config import Config
 import numpy as np
 

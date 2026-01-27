@@ -87,22 +87,22 @@ $$X_i = [ID_{brick}, color, x, y, z, q_w, q_x, q_y, q_z]$$
 ```
 ATLAS/
 ├── src/
-│   ├── config.py                           # Configuration class (constants)
-│   ├── MPDParser.py                        # MPD file parser
-│   ├── DatasetBuilder.py                   # Dataset processing pipeline
-│   ├── VocabularyManager.py                # Vocabulary management for atlas_config.json
-│   ├── utils.py                            # Matrix manipulation utilities
-│   ├── rotation_matrix_to_quaternion.py    # Rotation conversion utilities
-│   ├── write_mpd_file.py                   # MPD file writer
-│   ├── scrap_mpd_files.py                  # mpd file scraper (only works on seymouria.pl website)
+│   ├── config                .py                           # Configuration class (constants)
+│                ├── MPDParser.py                        # MPD f              ile parser
+│   ├── DatasetBuilder.py                             # Dataset processing pipeline
+│   ├── VocabularyManager.py                        # Vocabulary management for atlas_config.json
+│   ├──       utils.py                            # Matrix manipula           tion utilities
+│   ├── rotation_matrix_to_quaternion.p             y    # Rotation conversion utilities
+│   ├── write_mpd_file.py                   # MPD file                 writer
+│   ├── scrap_mpd_files.py                                       # mpd file scraper (only works on se            ymouria.pl website)
 │   └── formating/
-│       └── customFormatter.py              # Custom logging formatter
+│                └── customFormatter.py              # Custom logging                formatter
 ├── mpd_files/
-│   ├── dataset/                            # Input MPD files
-│   │   ├── LDraw_sets/                     # Input MPD files
-│   │   └── seymouria_ldraw_official_sets/  # Input MPD files
-│   └── generated/                          # Generated output files
-├── tests/                                  # Test suite
+│   ├── dataset               /                            # Input                      MPD files
+│   │   ├── LDraw_sets/                            # Input MPD files
+│   │   └── seymouria_ldraw      _official_sets/  # Input MPD files
+│   └── generate                    d/                          # Generated output files
+├──           tests/                                  # Test suite
 │   ├── test_vocabulary.py                  # Unit tests for VocabularyManager
 │   └── test_integration.py                 # Integration tests for DatasetBuilder
 ├── public/                                 # all public resources (mostly images)
@@ -137,7 +137,7 @@ The `DatasetBuilder` class processes multiple MPD files and builds a unified dat
 
 1. **Parsing:** Uses `MPDParser` to extract brick data from each `.mpd` file
 2. **Centering:** Centers each model around its barycenter for training stability
-3. **Quaternion Conversion:** Converts rotation matrices to unit quaternions with $q_w \ge 0$ for consistency
+3. **Quaternon Conversion:** Converts rotation matrices to unit quaternions with $q_w \ge 0$ for consistency
 4. **Brick Sorting:** Sorts bricks by position for deterministic ordering
 5. **Vocabulary Management:** Uses `VocabularyManager` to incrementally update vocabulary as new parts and colors are encountered
 
@@ -430,32 +430,3 @@ The current dataset is composed of the LDraw base models (sorted by theme), and 
 <p align="center">
 	<img src="https://raw.githubusercontent.com/catppuccin/catppuccin/main/assets/footers/gray0_ctp_on_line.svg?sanitize=true" />
 </p>
-
-
-[contributors-shield]: https://img.shields.io/github/contributors/alfred0404/lightseek-ocr.svg?style=for-the-badge
-[contributors-url]: https://github.com/alfred0404/lightseek-ocr/graphs/contributors
-
-<!-- Forks -->
-
-[forks-shield]: https://img.shields.io/github/forks/alfred0404/lightseek-ocr.svg?style=for-the-badge
-[forks-url]: https://github.com/alfred0404/lightseek-ocr/network/members
-
-<!-- Stars -->
-
-[stars-shield]: https://img.shields.io/github/stars/alfred0404/lightseek-ocr.svg?style=for-the-badge
-[stars-url]: https://github.com/alfred0404/lightseek-ocr/stargazers
-
-<!-- Issues -->
-
-[issues-shield]: https://img.shields.io/github/issues/alfred0404/lightseek-ocr.svg?style=for-the-badge
-[issues-url]: https://github.com/alfred0404/lightseek-ocr/issues
-
-<!-- License -->
-
-[license-shield]: https://img.shields.io/github/license/alfred0404/lightseek-ocr.svg?style=for-the-badge
-[license-url]: https://github.com/alfred0404/lightseek-ocr/blob/master/LICENSE.txt
-
-<!-- Linkedin -->
-
-[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
-[linkedin-url]: https://linkedin.com/in/alfred-de-vulpian

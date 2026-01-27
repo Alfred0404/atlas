@@ -12,9 +12,9 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from DatasetBuilder import DatasetBuilder
+from src.data.builder import DatasetBuilder
 from config import Config
-from VocabularyManager import VocabularyManager
+from src.core.vocabulary import VocabularyManager
 import json
 
 
@@ -64,7 +64,7 @@ def test_dataset_builder_integration():
 
     # Test collecting brick IDs and colors
     print("\n4. Testing brick data collection...")
-    from DatasetBuilder import BrickDataQuat
+    from src.data.builder import BrickDataQuat
 
     # Create some test data
     builder.quat_data = [
