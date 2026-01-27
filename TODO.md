@@ -16,7 +16,6 @@
 
 ## to refactor
 
-- to_quaternion() method just calls another function unnecessarily (delete the method)
 - add error handling
 - json i/o optimisation
 - hardcoded magic numbers

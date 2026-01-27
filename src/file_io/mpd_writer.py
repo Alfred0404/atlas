@@ -2,6 +2,9 @@ import sys
 from pathlib import Path
 import numpy as np
 from typing import List
+from logging import setup_logging
+
+logger = setup_logging()
 
 # Add src to path for direct execution
 if __name__ == "__main__":
@@ -25,6 +28,12 @@ def write_mpd_file(
         raw_data (List[RawBrickData]): List of brick data with world matrices.
         model_name (str): Name of the model (default: "main").
     """
+
+    if not Path(output_path).parent.exists():
+        logger.error(f"Output directory does not exist: {Path(output_path).parent}")
+        return
+
+
     with open(output_path, "w") as file:
         # Write header
         file.write(f"0 FILE {model_name}.ldr\n")

@@ -77,39 +77,16 @@ class DatasetBuilder:
 
         all_files = list(Path(Config.RAW_DATASET_DIR).glob("*.mpd"))
 
+        if not all_files:
+            logger.error(
+                f"No MPD files found in directory: {Config.RAW_DATASET_DIR}"
+            )
+            return
+
         for mpd_file in all_files:
-            parser = MPDParser(str(mpd_file))
-
-            logger.info(f"Processing {mpd_file} with {len(self.raw_data)} bricks.")
-            logger.debug(f"submodels: {parser._submodels}")
-
-            if not parser._submodels:
-                logger.warning(f"No submodels found in {mpd_file}. Skipping file.")
+            if not self._process_single_file(mpd_file):
+                logger.warning(f"Skipping file due to processing error: {mpd_file}")
                 continue
-
-            first_submodel_key = list(parser._submodels.keys())[0]
-
-            self.raw_data = parser.flatten(first_submodel_key, np.eye(4))
-            self.raw_data = parser.sort_bricks_by_position()
-
-            # Transform data
-            self.center_around_origin()
-            self.to_quat_representation()
-
-            logger.info(f"Transformation completed for {mpd_file}\n")
-
-            # Collect and update vocabulary
-            new_brick_ids = self.collect_brick_ids()
-            new_colors = self.collect_brick_colors()
-
-            self.all_brick_ids.update(new_brick_ids)
-            self.all_colors.update(new_colors)
-
-            # Update vocabulary incrementally
-            self._update_vocabulary(new_brick_ids, new_colors)
-
-            # Tokenize all brick attributes (positions, IDs, colors)
-            self.tokenize_brick_data()
 
         logger.info("Dataset processing complete.\n")
         logger.info(f"Total unique parts: {self.vocab_manager.get_parts_count()}")
@@ -117,7 +94,54 @@ class DatasetBuilder:
         logger.info(f"Total vocabulary size: {self.vocab_manager.get_vocab_size()}")
 
         if self.process_dataset:
-            logger.info(f"final quat data sample: {self.processed_data[0]}")
+            logger.info(f"final processed sample: {self.processed_data[0]}")
+
+    def _process_single_file(self, mpd_file_path: str) -> bool:
+        """
+        Process a single MPD file.
+
+        Args:
+            mpd_file_path: Path to the MPD file to process.
+        """
+        parser = MPDParser(str(mpd_file_path))
+
+        logger.info(f"Processing {mpd_file_path} with {len(self.raw_data)} bricks.")
+        logger.debug(f"submodels: {parser._submodels}")
+
+        if not parser._submodels:
+            logger.warning(f"No submodels found in {mpd_file_path}. Skipping file.")
+            return False
+
+        first_submodel_key = list(parser._submodels.keys())[0]
+
+        self.raw_data = parser.flatten(first_submodel_key, np.eye(4))
+
+        if not self.raw_data:
+            logger.warning(f"No raw data extracted from {mpd_file_path}. Skipping file.")
+            return False
+
+        self.raw_data = parser.sort_bricks_by_position()
+
+        # Transform data
+        self.center_around_origin()
+        self.to_quat_representation()
+
+        logger.info(f"Transformation completed for {mpd_file_path}\n")
+
+        # Collect and update vocabulary
+        new_brick_ids = self.collect_brick_ids()
+        new_colors = self.collect_brick_colors()
+
+        self.all_brick_ids.update(new_brick_ids)
+        self.all_colors.update(new_colors)
+
+        # Update vocabulary incrementally
+        self._update_vocabulary(new_brick_ids, new_colors)
+
+        # Tokenize all brick attributes (positions, IDs, colors)
+        self.tokenize_brick_data()
+
+        return True
 
     def center_around_origin(self) -> None:
         """

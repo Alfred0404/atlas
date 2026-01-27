@@ -31,6 +31,10 @@ class AtlasTokenizer:
             int: Corresponding bin ID.
         """
         logger.debug(f"Converting position {position} on axis {axis} to bin ID.")
+        if Config.PRECISION == 0:
+            logger.error("Config.PRECISION is zero, cannot perform division.")
+            raise ValueError("Config.PRECISION cannot be zero.")
+
         bin_id = (
             int((position - Config.MIN_POSITION) / Config.PRECISION)
             + Config.OFFSETS[f"positions_{axis}"]
@@ -64,6 +68,11 @@ class AtlasTokenizer:
         returns:
             int: Corresponding token ID.
         """
+
+        if not Path(Config.ATLAS_CONFIG_PATH).is_file():
+            logger.error(f"Atlas config file not found: {Config.ATLAS_CONFIG_PATH}")
+            return -1
+
         with open(Config.ATLAS_CONFIG_PATH, "r") as f:
             atlas_config = json.load(f)
 

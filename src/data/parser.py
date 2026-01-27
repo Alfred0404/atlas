@@ -47,6 +47,14 @@ class MPDParser:
         lines = []
         current_file = None
 
+        if not Path(self.mpd_file_path).exists():
+            logger.error(f"MPD file path does not exist: {self.mpd_file_path}")
+            return lines
+
+        if not Path(self.mpd_file_path).is_file():
+            logger.error(f"MPD file not found: {self.mpd_file_path}")
+            return lines
+
         with open(self.mpd_file_path, "r") as file:
             for line in file:
                 lines.append(line)
