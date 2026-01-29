@@ -73,13 +73,13 @@ A set is a group of bricks, which can be represented as tokens.
 
 Each brick $i$ is represented as a 9-dimensional vector:
 
-$$X_i = [ID_{brick}, color, x, y, z, q_w, q_x, q_y, q_z]$$
+$$X_i = [ID_{brick}, color, x, y, z, a, b, c, d, e, f, g, h, i]$$
 
 | Component          | Nature     | Processing                                                    |
 | :----------------- | :--------- | :------------------------------------------------------------ |
 | **ID_part**        | Discrete   | Mapped to unique index in vocabulary (after rotations)        |
 | **x, y, z**        | Continuous | Centered coordinates relative to set barycenter               |
-| **qw, qx, qy, qz** | Continuous | **Unit quaternions** (with constraint $q_w \ge 0$)            |
+| **a -> i** | Continuous | rotation matrix            |
 | **color**          | Discrete   | Mapped to unique index in vocabulary (prefixed with `color_`) |
 
 ## Project Structure
@@ -136,15 +136,14 @@ The `MPDParser` class handles parsing of `.mpd` files (LDraw format):
 The `DatasetBuilder` class processes multiple MPD files and builds a unified dataset:
 
 1. **Parsing:** Uses `MPDParser` to extract brick data from each `.mpd` file
-2. **Centering:** Centers each model around its barycenter for training stability
-3. **Quaternon Conversion:** Converts rotation matrices to unit quaternions with $q_w \ge 0$ for consistency
+2. **Centering:** Centers each model for training stability
 4. **Brick Sorting:** Sorts bricks by position for deterministic ordering
 5. **Vocabulary Management:** Uses `VocabularyManager` to incrementally update vocabulary as new parts and colors are encountered
 
 **Data Pipeline:**
 
 ```
-Raw MPD File → RawBrickData → BrickDataQuat → ProcessedBrickData → Tensor
+Raw MPD File → RawBrickData → ProcessedBrickData → Tensor
 ```
 
 ### VocabularyManager
@@ -165,6 +164,33 @@ The `VocabularyManager` class provides a clean interface for managing parts, col
 - `get_color_index(color)` - Retrieve color index (returns UNK if not found)
 - `get_rotation_index(quaternion)` - Calculate rotation index from quaternion
 - `get_special_token_index(token)` - Get special token index (PAD, SOS, EOS, UNK)
+
+### AtlasTokenizer
+
+The `AtlasTokenizer` class handles the conversion between brick attributes and token IDs for the transformer model:
+
+- **Tokenization (Encoding):** Converts brick attributes (position, rotation, color, part ID) into discrete token IDs
+- **Detokenization (Decoding):** Reconstructs brick attributes from token IDs
+- **Binning System:** Maps continuous position values to discrete bins for tokenization
+- **Rotation Matching:** Finds the closest chiral rotation matrix from the vocabulary
+
+**Key Methods:**
+
+- `position_to_bin_id(position, axis)` - Convert continuous position to discrete bin ID
+- `bin_id_to_position(bin_id, axis)` - Convert bin ID back to continuous position
+- `brick_id_to_token(brick_id)` - Convert brick part ID to token ID
+- `color_id_to_token(color_id)` - Convert color ID to token ID
+- `rotation_matrix_to_token(rotation_matrix)` - Convert 3×3 rotation matrix to closest chiral rotation token ID
+
+**Position Binning:**
+
+Continuous positions are discretized using a binning strategy:
+
+$$\text{bin\_id} = \left\lfloor \frac{\text{position} - \text{MIN\_POSITION}}{\text{PRECISION}} \right\rfloor + \text{OFFSET}$$
+
+This allows the model to work with discrete tokens while maintaining spatial precision. The reverse operation reconstructs the approximate position:
+
+$$\text{position} = (\text{bin\_id} - \text{OFFSET}) \times \text{PRECISION} + \text{MIN\_POSITION}$$
 
 ### Vocabulary Structure
 
@@ -435,13 +461,13 @@ ATLAS_CONFIG_PATH = "./atlas_config.json"
 
 ## Dataset
 
-The current dataset is composed of the LDraw base models (sorted by theme), and 1000+ official lego sets from [seymouria.pl](https://www.seymouria.pl/Download/official-lego-sets-ldr.php), downloaded using the `scrap_mpd_files.py` file. All the files are either `.mpd` or `.ldr` files for now.
+The current dataset is composed of the LDraw base models *(sorted by theme)*, and 1000+ official lego sets from [seymouria.pl](https://www.seymouria.pl/Download/official-lego-sets-ldr.php), downloaded using the `scrap_mpd_files.py` file. All the files are either `.mpd` or `.ldr` files for now.
 
 ## Future Directions
 
 ### Tokenization & Sequence Modeling
 
-- Implement binning for continuous positions (512 bins per axis)
+- Implement binning for continuous positions (1000 bins per axis)
 - Map rotations to nearest discrete rotation from 24 chiral options
 - Flatten brick sequences: `[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]`
 - Treat LEGO sets as sequences for autoregressive prediction
@@ -467,19 +493,6 @@ The current dataset is composed of the LDraw base models (sorted by theme), and 
 - Units are in LDU (LDraw Units): 1 LDU ≈ 0.4mm
 - Grid-based positioning for brick connections
 
-### Quaternion Conventions
-
-- Format: [w, x, y, z] (scalar-first)
-- Normalized: $|q| = 1$
-- Positive w convention: $q_w \ge 0$ (resolves double coverage)
-- Negating quaternion represents same rotation: $q \equiv -q$
-
-### Rotation Handling
-
-- SVD decomposition ensures pure rotation extraction (no scaling/shearing)
-- Determinant check prevents reflection matrices (det = +1 enforced)
-- 24 chiral octahedral rotations cover all valid LEGO orientations
-
 # Sources
 
 [Bricks list](https://library.ldraw.org/parts/list)
@@ -498,3 +511,35 @@ The current dataset is composed of the LDraw base models (sorted by theme), and 
 <p align="center">
 	<img src="https://raw.githubusercontent.com/catppuccin/catppuccin/main/assets/footers/gray0_ctp_on_line.svg?sanitize=true" />
 </p>
+
+
+<!-- LINKS & IMAGES -->
+<!-- Contributors -->
+
+[contributors-shield]: https://img.shields.io/github/contributors/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[contributors-url]: https://github.com/alfred0404/lightseek-ocr/graphs/contributors
+
+<!-- Forks -->
+
+[forks-shield]: https://img.shields.io/github/forks/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[forks-url]: https://github.com/alfred0404/lightseek-ocr/network/members
+
+<!-- Stars -->
+
+[stars-shield]: https://img.shields.io/github/stars/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[stars-url]: https://github.com/alfred0404/lightseek-ocr/stargazers
+
+<!-- Issues -->
+
+[issues-shield]: https://img.shields.io/github/issues/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[issues-url]: https://github.com/alfred0404/lightseek-ocr/issues
+
+<!-- License -->
+
+[license-shield]: https://img.shields.io/github/license/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[license-url]: https://github.com/alfred0404/lightseek-ocr/blob/master/LICENSE.txt
+
+<!-- Linkedin -->
+
+[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
+[linkedin-url]: https://linkedin.com/in/alfred-de-vulpian
