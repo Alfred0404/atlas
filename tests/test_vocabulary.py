@@ -1,123 +1,151 @@
-"""
-Test script to verify the refactored vocabulary system.
+"""Test suite for the VocabularyManager.
 
-This script tests the VocabularyManager and the updated DatasetBuilder.
+Tests vocabulary creation, part/color management, and special tokens.
 """
 
 import sys
 from pathlib import Path
-
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from VocabularyManager import VocabularyManager
-from config import Config
 import numpy as np
+import pytest
+
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.core.vocabulary import VocabularyManager
 
 
-def test_vocabulary_manager():
-    """Test the VocabularyManager functionality."""
-    print("=" * 60)
-    print("Testing VocabularyManager")
-    print("=" * 60)
+@pytest.fixture
+def test_config_path(tmp_path: Path) -> str:
+    """Provide a temporary config file path.
+    Args:
+        tmp_path (Path): Temporary directory provided by pytest.
+    Returns:
+        str: Path to the temporary config file.
+    """
+    return str(tmp_path / "test_atlas_config.json")
 
-    # Create a test config file
-    test_config_path = "./test_atlas_config.json"
 
-    # Initialize VocabularyManager
-    vocab_manager = VocabularyManager(test_config_path)
+@pytest.fixture
+def vocab_manager(test_config_path: str) -> VocabularyManager:
+    """Create a VocabularyManager instance for testing.
+    Args:
+        test_config_path (str): Path to the temporary config file.
+    Returns:
+        VocabularyManager: An instance of VocabularyManager.
+    """
+    return VocabularyManager(test_config_path)
 
-    # Test adding parts
-    print("\n1. Testing add_part()...")
+
+def test_add_part(vocab_manager: VocabularyManager):
+    """Test adding parts to vocabulary.
+    Args:
+        vocab_manager (VocabularyManager): VocabularyManager instance.
+    """
     part1_idx = vocab_manager.add_part("3001.dat")
     part2_idx = vocab_manager.add_part("3002.dat")
     part3_idx = vocab_manager.add_part("3001.dat")  # Should return same index
 
-    print(f"   Part '3001.dat' -> index {part1_idx}")
-    print(f"   Part '3002.dat' -> index {part2_idx}")
-    print(f"   Part '3001.dat' (duplicate) -> index {part3_idx}")
     assert part1_idx == part3_idx, "Duplicate parts should have same index"
-    print("   ✓ Parts added successfully")
+    assert part1_idx != part2_idx, "Different parts should have different indices"
 
-    # Test adding colors
-    print("\n2. Testing add_color()...")
+
+def test_add_color(vocab_manager: VocabularyManager):
+    """Test adding colors to vocabulary.
+    Args:
+        vocab_manager (VocabularyManager): VocabularyManager instance.
+    """
+
     color1_idx = vocab_manager.add_color(1)
     color2_idx = vocab_manager.add_color(4)
     color3_idx = vocab_manager.add_color(1)  # Should return same index
 
-    print(f"   Color 1 -> index {color1_idx}")
-    print(f"   Color 4 -> index {color2_idx}")
-    print(f"   Color 1 (duplicate) -> index {color3_idx}")
     assert color1_idx == color3_idx, "Duplicate colors should have same index"
-    print("   ✓ Colors added successfully")
+    assert color1_idx != color2_idx, "Different colors should have different indices"
 
-    # Test adding multiple parts
-    print("\n3. Testing add_parts()...")
+
+def test_add_multiple_parts(vocab_manager: VocabularyManager):
+    """Test adding multiple parts at once.
+    Args:
+        vocab_manager (VocabularyManager): VocabularyManager instance.
+    """
+
     parts_to_add = {"3003.dat", "3004.dat", "3005.dat"}
     result = vocab_manager.add_parts(parts_to_add)
-    print(f"   Added {len(result)} parts: {result}")
-    print("   ✓ Multiple parts added successfully")
 
-    # Test getting indices
-    print("\n4. Testing get_part_index()...")
+    assert len(result) == 3, "Should add 3 parts"
+    for part in parts_to_add:
+        assert part in result, f"Part {part} should be in result"
+
+
+def test_get_part_index(vocab_manager: VocabularyManager):
+    """Test retrieving part indices.
+    Args:
+        vocab_manager (VocabularyManager): VocabularyManager instance.
+    """
+
+    vocab_manager.add_part("3001.dat")
+
     idx = vocab_manager.get_part_index("3001.dat")
-    print(f"   Index for '3001.dat': {idx}")
-    unknown_idx = vocab_manager.get_part_index("unknown.dat")
-    print(f"   Index for unknown part: {unknown_idx} (should be 3 = UNK)")
-    assert unknown_idx == 3, "Unknown parts should return UNK token"
-    print("   ✓ Part indices retrieved successfully")
+    assert idx is not None, "Should return valid index for known part"
 
-    # Test special tokens
-    print("\n5. Testing special tokens...")
+    unknown_idx = vocab_manager.get_part_index("unknown.dat")
+    assert unknown_idx == 3, "Unknown parts should return UNK token (index 3)"
+
+
+def test_special_tokens(vocab_manager: VocabularyManager):
+    """Test special token indices.
+    Args:
+        vocab_manager (VocabularyManager): VocabularyManager instance.
+    """
+
     pad_idx = vocab_manager.get_special_token_index("PAD")
     sos_idx = vocab_manager.get_special_token_index("SOS")
     eos_idx = vocab_manager.get_special_token_index("EOS")
     unk_idx = vocab_manager.get_special_token_index("UNK")
 
-    print(f"   PAD: {pad_idx}, SOS: {sos_idx}, EOS: {eos_idx}, UNK: {unk_idx}")
-    assert pad_idx == 0 and sos_idx == 1 and eos_idx == 2 and unk_idx == 3
-    print("   ✓ Special tokens correct")
+    assert pad_idx == 0, "PAD token should be index 0"
+    assert sos_idx == 1, "SOS token should be index 1"
+    assert eos_idx == 2, "EOS token should be index 2"
+    assert unk_idx == 3, "UNK token should be index 3"
 
-    # Test rotation index
-    print("\n6. Testing get_rotation_index()...")
-    identity_quat = np.array([1.0, 0.0, 0.0, 0.0])  # Identity rotation
-    rot_idx = vocab_manager.get_rotation_index(identity_quat)
-    print(f"   Rotation index for identity: {rot_idx} (should be 0-23)")
+
+def test_rotation_index(vocab_manager: VocabularyManager):
+    """Test rotation index calculation.
+    Args:
+        vocab_manager (VocabularyManager): VocabularyManager instance.
+    """
+
+    identity_matrix = np.eye(3)  # Identity rotation matrix
+    rot_idx = vocab_manager.get_rotation_index(identity_matrix)
+
     assert 0 <= rot_idx < 24, "Rotation index should be between 0 and 23"
-    print("   ✓ Rotation index calculated successfully")
 
-    # Test vocabulary size
-    print("\n7. Testing vocabulary size...")
+
+def test_vocabulary_size(vocab_manager: VocabularyManager):
+    """Test vocabulary size calculation.
+    Args:
+        vocab_manager (VocabularyManager): VocabularyManager instance.
+    """
+
+    # Get initial size (should be Config.OFFSETS["parts"] which is 3028)
+    initial_size = vocab_manager.get_vocab_size()
+
+    # Add some parts and colors
+    vocab_manager.add_part("3001.dat")
+    vocab_manager.add_part("3002.dat")
+    vocab_manager.add_color(1)
+    vocab_manager.add_color(4)
+
     vocab_size = vocab_manager.get_vocab_size()
     parts_count = vocab_manager.get_parts_count()
     colors_count = vocab_manager.get_colors_count()
 
-    print(f"   Total vocab size: {vocab_size}")
-    print(f"   Parts count: {parts_count}")
-    print(f"   Colors count: {colors_count}")
-    print(f"   Special tokens: 4")
-    print(f"   Rotations: 24")
+    # Vocab size increases by the number of parts + colors added
+    expected_size = initial_size + parts_count + colors_count
 
-    expected_size = 4 + 24 + parts_count + colors_count
-    print(f"   Expected size: {expected_size}")
-    print("   ✓ Vocabulary size calculation correct")
-
-    print("\n" + "=" * 60)
-    print("All VocabularyManager tests passed! ✓")
-    print("=" * 60)
-
-    # Cleanup
-    Path(test_config_path).unlink(missing_ok=True)
-    print(f"\nCleaned up test file: {test_config_path}")
-
-
-if __name__ == "__main__":
-    try:
-        test_vocabulary_manager()
-        print("\n✓ All tests completed successfully!")
-    except Exception as e:
-        print(f"\n✗ Test failed with error: {e}")
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)
+    assert parts_count == 2, "Should have 2 parts"
+    assert colors_count == 2, "Should have 2 colors"
+    assert (
+        vocab_size == expected_size
+    ), f"Vocabulary size {vocab_size} should match expected {expected_size}"

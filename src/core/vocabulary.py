@@ -6,22 +6,15 @@ without storing continuous variables (rotations, positions) in memory.
 """
 
 import json
-import logging
 from pathlib import Path
 from typing import Dict, List, Set, Optional
 import numpy as np
 
-from formating.customFormatter import CustomFormatter
-from config import Config
-from rotation_matrix_to_quaternion import generate_quat_chiral_rotations
+from ..config import Config
+from ..maths.rotations import generate_chiral_rotation_matrices
+from ..utils.logging import setup_logging
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(Config.LOGGING_LEVEL)
-ch = logging.StreamHandler()
-ch.setLevel(Config.LOGGING_LEVEL)
-ch.setFormatter(CustomFormatter())
-logger.addHandler(ch)
+logger = setup_logging()
 
 
 class VocabularyManager:
@@ -32,14 +25,14 @@ class VocabularyManager:
     vocabulary-related operations. Rotations are calculated on-the-fly and not stored.
     """
 
-    def __init__(self, config_path: str):
+    def __init__(self, atlas_config_path: str):
         """
         Initialize the VocabularyManager.
 
         Args:
-            config_path: Path to the atlas_config.json file.
+            atlas_config_path: Path to the atlas_config.json file.
         """
-        self.config_path = Path(config_path)
+        self.config_path = Path(atlas_config_path)
         self.config_data: Dict = {}
         self._load_or_initialize_config()
 
@@ -50,27 +43,31 @@ class VocabularyManager:
         Creates the config file with default structure if it doesn't exist.
         Ensures rotations are populated even in existing configs.
         """
-        if self.config_path.exists():
-            try:
-                with open(self.config_path, "r", encoding="utf-8") as f:
-                    self.config_data = json.load(f)
-                logger.info(f"Loaded configuration from {self.config_path}")
 
-                # Check if rotations are empty and populate them if needed
-                if not self.config_data.get("vocabulary", {}).get("rotations"):
-                    logger.info("Rotations empty in existing config. Populating...")
-                    rotations = self._generate_rotation_vocabulary()
-                    self.config_data["vocabulary"]["rotations"] = rotations
-                    self.config_data["offsets"]["rotations"] = 4
-                    self.config_data["offsets"]["colors"] = 4 + len(rotations)
-                    self._save_config()
-                    logger.info("Rotations populated and config updated")
-
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse {self.config_path}: {e}")
-                self._initialize_default_config()
-        else:
+        if not self.config_path.exists():
             logger.warning(f"{self.config_path} does not exist. Creating a new config.")
+            self._initialize_default_config()
+            self._save_config()
+            return
+
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f:
+                self.config_data = json.load(f)
+            logger.info(f"Loaded configuration from {self.config_path}")
+
+            # Check if rotations are empty and populate them if needed
+            if not self.config_data.get("vocabulary", {}).get("rotations"):
+                logger.info("Rotations empty in existing config. Populating...")
+                rotations = self._generate_rotation_vocabulary()
+                self.config_data["vocabulary"]["rotations"] = rotations
+                self.config_data["offsets"]["rotations"] = Config.OFFSETS["rotations"]
+                self.config_data["offsets"]["colors"] = Config.OFFSETS["colors"]
+                self.config_data["offsets"]["parts"] = Config.OFFSETS["parts"]
+                self._save_config()
+                logger.info("Rotations populated and config updated")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse {self.config_path}: {e}")
             self._initialize_default_config()
             self._save_config()
 
@@ -83,13 +80,13 @@ class VocabularyManager:
             "version": "1.0",
             "spatial": {"l_min": -1000, "l_max": 1000, "step": 2, "num_bins": 1000},
             "offsets": {
-                "special": 0, # 4 special tokens
-                "rotations": 4, # 24 rotations
-                "positions_x": 28, # 1000 position bins
-                "positions_y": 1028, # 1000 position bins
-                "positions_z": 2028, # 1000 position bins
-                "colors": 3028, # starting after positions
-                "parts": 3128, # starting after colors
+                "special": Config.OFFSETS["special"],  # 4 special tokens
+                "rotations": Config.OFFSETS["rotations"],  # 24 rotations
+                "positions_x": Config.OFFSETS["positions_x"],  # 1000 position bins
+                "positions_y": Config.OFFSETS["positions_y"],  # 1000 position bins
+                "positions_z": Config.OFFSETS["positions_z"],  # 1000 position bins
+                "colors": Config.OFFSETS["colors"],  # starting after positions
+                "parts": Config.OFFSETS["parts"],  # starting after colors
             },
             "vocabulary": {
                 "special": {"PAD": 0, "SOS": 1, "EOS": 2, "UNK": 3},
@@ -98,7 +95,7 @@ class VocabularyManager:
                 "colors": {},
                 # Note: positions are not stored in vocabulary because the bins can be calculated
             },
-            "vocab_size": 4 + len(rotations),
+            "vocab_size": Config.OFFSETS["parts"],
         }
         logger.info("Initialized default configuration")
 
@@ -107,14 +104,15 @@ class VocabularyManager:
         Generate the 24 chiral rotations vocabulary.
 
         Returns:
-            Dictionary mapping rotation quaternion strings to indices.
+            Dictionary mapping rotation matrix strings to indices.
         """
-        rotations = generate_quat_chiral_rotations()
+        rotations = generate_chiral_rotation_matrices()
         rotation_vocab = {}
 
-        for idx, quat in enumerate(rotations):
-            # Create a unique key for each rotation quaternion
-            key = f"[{quat[0]:.6f},{quat[1]:.6f},{quat[2]:.6f},{quat[3]:.6f}]"
+        for idx, rot_matrix in enumerate(rotations):
+            # Create a unique key for each rotation matrix
+            # Flatten the matrix and create a string representation
+            key = "[" + ",".join(f"{val:.6f}" for val in rot_matrix.flatten()) + "]"
             rotation_vocab[key] = idx
 
         logger.debug(f"Generated {len(rotation_vocab)} rotation entries")
@@ -122,6 +120,7 @@ class VocabularyManager:
 
     def _save_config(self) -> None:
         """Save the current configuration to the JSON file."""
+
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(self.config_data, f, indent=2)
         logger.debug(f"Configuration saved to {self.config_path}")
@@ -136,7 +135,12 @@ class VocabularyManager:
         Returns:
             The index assigned to the part.
         """
-        parts = self.config_data["vocabulary"]["parts"]
+        try:
+            parts = self.config_data["vocabulary"]["parts"]
+        except KeyError:
+            logger.warning("Parts vocabulary missing, initializing.")
+            parts = {}
+            self.config_data["vocabulary"]["parts"] = parts
 
         if part_id not in parts:
             # Calculate the new index based on current vocab size
@@ -165,9 +169,12 @@ class VocabularyManager:
         Returns:
             Dictionary mapping part IDs to their indices.
         """
+
         result = {}
+
         for part_id in sorted(part_ids):  # Sort for consistency
             result[part_id] = self.add_part(part_id)
+
         return result
 
     def add_color(self, color: int) -> int:
@@ -180,7 +187,14 @@ class VocabularyManager:
         Returns:
             The index assigned to the color.
         """
-        colors = self.config_data["vocabulary"]["colors"]
+
+        try:
+            colors = self.config_data["vocabulary"]["colors"]
+        except KeyError:
+            logger.warning("Colors vocabulary missing, initializing.")
+            colors = {}
+            self.config_data["vocabulary"]["colors"] = colors
+
         color_key = str(color)
 
         if color_key not in colors:
@@ -210,8 +224,10 @@ class VocabularyManager:
             Dictionary mapping color IDs (as strings) to their indices.
         """
         result = {}
+
         for color in sorted(color_ids):  # Sort for consistency
             result[str(color)] = self.add_color(color)
+
         return result
 
     def get_part_index(self, part_id: str) -> int:
@@ -238,31 +254,28 @@ class VocabularyManager:
         """
         return self.config_data["vocabulary"]["colors"].get(str(color), 3)
 
-    def get_rotation_index(self, quaternion: np.ndarray) -> int:
+    def get_rotation_index(self, rotation_matrix: np.ndarray) -> int:
         """
         Get the index of the closest matching rotation.
 
         This method calculates which of the 24 chiral rotations best matches
-        the given quaternion.
+        the given rotation matrix.
 
         Args:
-            quaternion: Rotation quaternion [w, x, y, z].
+            rotation_matrix: Rotation matrix of shape (3, 3).
 
         Returns:
             The index of the closest rotation (0-23).
         """
-        rotations = generate_quat_chiral_rotations()
+        rotations = generate_chiral_rotation_matrices()
 
-        # Find the closest rotation by comparing quaternion distance
+        # Find the closest rotation by comparing Frobenius norm
         min_distance = float("inf")
         best_idx = 0
 
-        for idx, rot_quat in enumerate(rotations):
-            # Quaternion distance (accounting for q and -q being equivalent)
-            dist = min(
-                np.linalg.norm(quaternion - rot_quat),
-                np.linalg.norm(quaternion + rot_quat),
-            )
+        for idx, rot_mat in enumerate(rotations):
+            # Matrix distance using Frobenius norm
+            dist = np.linalg.norm(rotation_matrix - rot_mat, "fro")
 
             if dist < min_distance:
                 min_distance = dist

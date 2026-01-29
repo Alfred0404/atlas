@@ -73,13 +73,13 @@ A set is a group of bricks, which can be represented as tokens.
 
 Each brick $i$ is represented as a 9-dimensional vector:
 
-$$X_i = [ID_{brick}, color, x, y, z, q_w, q_x, q_y, q_z]$$
+$$X_i = [ID_{brick}, color, x, y, z, a, b, c, d, e, f, g, h, i]$$
 
 | Component          | Nature     | Processing                                                    |
 | :----------------- | :--------- | :------------------------------------------------------------ |
 | **ID_part**        | Discrete   | Mapped to unique index in vocabulary (after rotations)        |
 | **x, y, z**        | Continuous | Centered coordinates relative to set barycenter               |
-| **qw, qx, qy, qz** | Continuous | **Unit quaternions** (with constraint $q_w \ge 0$)            |
+| **a -> i** | Continuous | rotation matrix            |
 | **color**          | Discrete   | Mapped to unique index in vocabulary (prefixed with `color_`) |
 
 ## Project Structure
@@ -87,22 +87,22 @@ $$X_i = [ID_{brick}, color, x, y, z, q_w, q_x, q_y, q_z]$$
 ```
 ATLAS/
 ├── src/
-│   ├── config.py                           # Configuration class (constants)
-│   ├── MPDParser.py                        # MPD file parser
-│   ├── DatasetBuilder.py                   # Dataset processing pipeline
-│   ├── VocabularyManager.py                # Vocabulary management for atlas_config.json
-│   ├── utils.py                            # Matrix manipulation utilities
-│   ├── rotation_matrix_to_quaternion.py    # Rotation conversion utilities
-│   ├── write_mpd_file.py                   # MPD file writer
-│   ├── scrap_mpd_files.py                  # mpd file scraper (only works on seymouria.pl website)
+│   ├── config                .py                           # Configuration class (constants)
+│                ├── MPDParser.py                        # MPD f              ile parser
+│   ├── DatasetBuilder.py                             # Dataset processing pipeline
+│   ├── VocabularyManager.py                        # Vocabulary management for atlas_config.json
+│   ├──       utils.py                            # Matrix manipula           tion utilities
+│   ├── rotation_matrix_to_quaternion.p             y    # Rotation conversion utilities
+│   ├── write_mpd_file.py                   # MPD file                 writer
+│   ├── scrap_mpd_files.py                                       # mpd file scraper (only works on se            ymouria.pl website)
 │   └── formating/
-│       └── customFormatter.py              # Custom logging formatter
+│                └── customFormatter.py              # Custom logging                formatter
 ├── mpd_files/
-│   ├── dataset/                            # Input MPD files
-│   │   ├── LDraw_sets/                     # Input MPD files
-│   │   └── seymouria_ldraw_official_sets/  # Input MPD files
-│   └── generated/                          # Generated output files
-├── tests/                                  # Test suite
+│   ├── dataset               /                            # Input                      MPD files
+│   │   ├── LDraw_sets/                            # Input MPD files
+│   │   └── seymouria_ldraw      _official_sets/  # Input MPD files
+│   └── generate                    d/                          # Generated output files
+├──           tests/                                  # Test suite
 │   ├── test_vocabulary.py                  # Unit tests for VocabularyManager
 │   └── test_integration.py                 # Integration tests for DatasetBuilder
 ├── public/                                 # all public resources (mostly images)
@@ -136,15 +136,14 @@ The `MPDParser` class handles parsing of `.mpd` files (LDraw format):
 The `DatasetBuilder` class processes multiple MPD files and builds a unified dataset:
 
 1. **Parsing:** Uses `MPDParser` to extract brick data from each `.mpd` file
-2. **Centering:** Centers each model around its barycenter for training stability
-3. **Quaternion Conversion:** Converts rotation matrices to unit quaternions with $q_w \ge 0$ for consistency
+2. **Centering:** Centers each model for training stability
 4. **Brick Sorting:** Sorts bricks by position for deterministic ordering
 5. **Vocabulary Management:** Uses `VocabularyManager` to incrementally update vocabulary as new parts and colors are encountered
 
 **Data Pipeline:**
 
 ```
-Raw MPD File → RawBrickData → BrickDataQuat → ProcessedBrickData → Tensor
+Raw MPD File → RawBrickData → ProcessedBrickData → Tensor
 ```
 
 ### VocabularyManager
@@ -165,6 +164,33 @@ The `VocabularyManager` class provides a clean interface for managing parts, col
 - `get_color_index(color)` - Retrieve color index (returns UNK if not found)
 - `get_rotation_index(quaternion)` - Calculate rotation index from quaternion
 - `get_special_token_index(token)` - Get special token index (PAD, SOS, EOS, UNK)
+
+### AtlasTokenizer
+
+The `AtlasTokenizer` class handles the conversion between brick attributes and token IDs for the transformer model:
+
+- **Tokenization (Encoding):** Converts brick attributes (position, rotation, color, part ID) into discrete token IDs
+- **Detokenization (Decoding):** Reconstructs brick attributes from token IDs
+- **Binning System:** Maps continuous position values to discrete bins for tokenization
+- **Rotation Matching:** Finds the closest chiral rotation matrix from the vocabulary
+
+**Key Methods:**
+
+- `position_to_bin_id(position, axis)` - Convert continuous position to discrete bin ID
+- `bin_id_to_position(bin_id, axis)` - Convert bin ID back to continuous position
+- `brick_id_to_token(brick_id)` - Convert brick part ID to token ID
+- `color_id_to_token(color_id)` - Convert color ID to token ID
+- `rotation_matrix_to_token(rotation_matrix)` - Convert 3×3 rotation matrix to closest chiral rotation token ID
+
+**Position Binning:**
+
+Continuous positions are discretized using a binning strategy:
+
+$$\text{bin\_id} = \left\lfloor \frac{\text{position} - \text{MIN\_POSITION}}{\text{PRECISION}} \right\rfloor + \text{OFFSET}$$
+
+This allows the model to work with discrete tokens while maintaining spatial precision. The reverse operation reconstructs the approximate position:
+
+$$\text{position} = (\text{bin\_id} - \text{OFFSET}) \times \text{PRECISION} + \text{MIN\_POSITION}$$
 
 ### Vocabulary Structure
 
@@ -329,30 +355,98 @@ write_mpd_file(
 
 ## Testing
 
-The project includes comprehensive test suites:
+The project uses **pytest** for comprehensive test coverage across all components.
 
 ### Running Tests
 
 ```bash
-# Run vocabulary manager tests
-python tests/test_vocabulary.py
+# Run all tests
+pytest
 
-# Run integration tests
-python tests/test_integration.py
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/test_rotations.py
+pytest tests/test_vocabulary.py
+pytest tests/test_integration.py
+
+# Run specific test function
+pytest tests/test_vocabulary.py::test_add_part
+
+# Run with coverage report
+pytest --cov=src --cov-report=html
 ```
 
-### Test Coverage
+### Test Structure
 
-- **test_vocabulary.py:** Unit tests for `VocabularyManager` functionality
-  - Adding/retrieving parts and colors
-  - Special token handling
-  - Rotation index calculation
-  - Vocabulary size management
+The test suite is organized into three main files:
 
-- **test_integration.py:** Integration tests for `DatasetBuilder` with `VocabularyManager`
-  - End-to-end workflow validation
-  - Vocabulary updates during processing
-  - Config file structure verification
+#### 1. **test_rotations.py** - Rotation System Tests
+
+Tests the 24 chiral rotation matrices generation and matching:
+
+- `test_chiral_matrices_generation()` - Validates generation of 24 unique rotation matrices
+- `test_closest_rotation_matrix()` - Tests rotation matching algorithm with exact and perturbed matrices
+
+#### 2. **test_vocabulary.py** - Vocabulary Manager Unit Tests
+
+Comprehensive tests for vocabulary management:
+
+- `test_add_part()` - Adding parts and handling duplicates
+- `test_add_color()` - Adding colors and handling duplicates
+- `test_add_multiple_parts()` - Batch part additions
+- `test_get_part_index()` - Retrieving part indices with UNK fallback
+- `test_special_tokens()` - Special token indices (PAD, SOS, EOS, UNK)
+- `test_rotation_index()` - Rotation matrix to index mapping
+- `test_vocabulary_size()` - Vocabulary size calculations
+
+#### 3. **test_integration.py** - DatasetBuilder Integration Tests
+
+End-to-end workflow validation:
+
+- `test_dataset_builder_initialization()` - Builder initialization
+- `test_vocabulary_manager_initialization()` - Vocabulary setup validation
+- `test_manual_vocabulary_updates()` - Adding parts and colors
+- `test_brick_data_collection()` - Extracting unique brick IDs and colors
+- `test_id_mapping()` - Tokenization and ID mapping
+- `test_rotation_index_calculation()` - Rotation processing
+- `test_config_file_structure()` - Configuration file validation
+
+### Test Fixtures
+
+Tests use pytest fixtures for clean, isolated test environments:
+
+- `tmp_path` - Temporary directories for config files (auto-cleanup)
+- `test_config_path` - Isolated vocabulary configuration
+- `vocab_manager` - Pre-configured VocabularyManager instance
+- `dataset_builder` - Pre-configured DatasetBuilder instance
+
+### Continuous Testing
+
+The test suite ensures:
+
+- **Idempotency:** Tests can run multiple times with consistent results
+- **Isolation:** Each test runs independently without side effects
+- **Cleanup:** Temporary files automatically removed after tests
+- **Coverage:** All critical paths and edge cases covered
+
+### Example Test Output
+
+```bash
+$ pytest -v
+================================ test session starts ================================
+tests/test_rotations.py::test_chiral_matrices_generation PASSED              [ 11%]
+tests/test_rotations.py::test_closest_rotation_matrix PASSED                 [ 22%]
+tests/test_vocabulary.py::test_add_part PASSED                               [ 33%]
+tests/test_vocabulary.py::test_add_color PASSED                              [ 44%]
+tests/test_vocabulary.py::test_add_multiple_parts PASSED                     [ 55%]
+tests/test_vocabulary.py::test_get_part_index PASSED                         [ 66%]
+tests/test_vocabulary.py::test_special_tokens PASSED                         [ 77%]
+tests/test_vocabulary.py::test_rotation_index PASSED                         [ 88%]
+tests/test_vocabulary.py::test_vocabulary_size PASSED                        [100%]
+================================ 9 passed in 0.42s ==================================
+```
 
 ## Configuration
 
@@ -367,13 +461,13 @@ ATLAS_CONFIG_PATH = "./atlas_config.json"
 
 ## Dataset
 
-The current dataset is composed of the LDraw base models (sorted by theme), and 1000+ official lego sets from [seymouria.pl](https://www.seymouria.pl/Download/official-lego-sets-ldr.php), downloaded using the `scrap_mpd_files.py` file. All the files are either `.mpd` or `.ldr` files for now.
+The current dataset is composed of the LDraw base models *(sorted by theme)*, and 1000+ official lego sets from [seymouria.pl](https://www.seymouria.pl/Download/official-lego-sets-ldr.php), downloaded using the `scrap_mpd_files.py` file. All the files are either `.mpd` or `.ldr` files for now.
 
 ## Future Directions
 
 ### Tokenization & Sequence Modeling
 
-- Implement binning for continuous positions (512 bins per axis)
+- Implement binning for continuous positions (1000 bins per axis)
 - Map rotations to nearest discrete rotation from 24 chiral options
 - Flatten brick sequences: `[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]`
 - Treat LEGO sets as sequences for autoregressive prediction
@@ -399,19 +493,6 @@ The current dataset is composed of the LDraw base models (sorted by theme), and 
 - Units are in LDU (LDraw Units): 1 LDU ≈ 0.4mm
 - Grid-based positioning for brick connections
 
-### Quaternion Conventions
-
-- Format: [w, x, y, z] (scalar-first)
-- Normalized: $|q| = 1$
-- Positive w convention: $q_w \ge 0$ (resolves double coverage)
-- Negating quaternion represents same rotation: $q \equiv -q$
-
-### Rotation Handling
-
-- SVD decomposition ensures pure rotation extraction (no scaling/shearing)
-- Determinant check prevents reflection matrices (det = +1 enforced)
-- 24 chiral octahedral rotations cover all valid LEGO orientations
-
 # Sources
 
 [Bricks list](https://library.ldraw.org/parts/list)
@@ -430,3 +511,35 @@ The current dataset is composed of the LDraw base models (sorted by theme), and 
 <p align="center">
 	<img src="https://raw.githubusercontent.com/catppuccin/catppuccin/main/assets/footers/gray0_ctp_on_line.svg?sanitize=true" />
 </p>
+
+
+<!-- LINKS & IMAGES -->
+<!-- Contributors -->
+
+[contributors-shield]: https://img.shields.io/github/contributors/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[contributors-url]: https://github.com/alfred0404/lightseek-ocr/graphs/contributors
+
+<!-- Forks -->
+
+[forks-shield]: https://img.shields.io/github/forks/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[forks-url]: https://github.com/alfred0404/lightseek-ocr/network/members
+
+<!-- Stars -->
+
+[stars-shield]: https://img.shields.io/github/stars/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[stars-url]: https://github.com/alfred0404/lightseek-ocr/stargazers
+
+<!-- Issues -->
+
+[issues-shield]: https://img.shields.io/github/issues/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[issues-url]: https://github.com/alfred0404/lightseek-ocr/issues
+
+<!-- License -->
+
+[license-shield]: https://img.shields.io/github/license/alfred0404/lightseek-ocr.svg?style=for-the-badge
+[license-url]: https://github.com/alfred0404/lightseek-ocr/blob/master/LICENSE.txt
+
+<!-- Linkedin -->
+
+[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
+[linkedin-url]: https://linkedin.com/in/alfred-de-vulpian

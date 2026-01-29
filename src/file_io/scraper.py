@@ -3,23 +3,22 @@ Script to download all .mpd and .ldr files from seymouria.pl
 Downloads official LEGO set files in LDraw format.
 """
 
+import sys
+from pathlib import Path
 import os
 import time
-import logging
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-from formating.customFormatter import CustomFormatter
-from config import Config
+# Add src to path for direct execution
+if __name__ == "__main__":
+    src_path = Path(__file__).parent.parent
+    sys.path.insert(0, str(src_path))
 
-# Set up logging
-logger = logging.getLogger(__name__)
-logger.setLevel(Config.LOGGING_LEVEL)
-ch = logging.StreamHandler()
-ch.setLevel(Config.LOGGING_LEVEL)
-ch.setFormatter(CustomFormatter())
-logger.addHandler(ch)
+from ..utils.logging import setup_logging
+
+logger = setup_logging()
 
 
 def download_file(url: str, save_path: str) -> bool:

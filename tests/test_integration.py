@@ -1,151 +1,213 @@
-"""
-Integration test for the refactored DatasetBuilder with VocabularyManager.
+"""Integration tests for DatasetBuilder with VocabularyManager.
 
-This test verifies that the DatasetBuilder correctly processes MPD files
-and updates the vocabulary using the VocabularyManager.
+Tests the integration between DatasetBuilder and VocabularyManager,
+including vocabulary updates and brick data processing.
 """
 
 import sys
 from pathlib import Path
 import numpy as np
-
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from DatasetBuilder import DatasetBuilder
-from config import Config
-from VocabularyManager import VocabularyManager
+import pytest
 import json
 
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
-def test_dataset_builder_integration():
-    """Test DatasetBuilder integration with VocabularyManager."""
-    print("=" * 60)
-    print("Testing DatasetBuilder Integration")
-    print("=" * 60)
+from src.data.builder import DatasetBuilder
+from src.data.parser import RawBrickData
+from src.config import Config
+from src.core.vocabulary import VocabularyManager
 
-    # Use a test config
-    test_config_path = "./test_integration_config.json"
 
-    # Initialize DatasetBuilder
-    print("\n1. Initializing DatasetBuilder...")
-    builder = DatasetBuilder(test_config_path)
-    print("   ✓ DatasetBuilder initialized")
+@pytest.fixture
+def test_config_path(tmp_path: Path):
+    """Provide a temporary config file path.
+    Yields:
+        str: Path to the temporary config file.
+    """
 
-    # Test vocabulary manager is properly initialized
-    print("\n2. Checking VocabularyManager initialization...")
-    vocab_size = builder.vocab_manager.get_vocab_size()
-    parts_count = builder.vocab_manager.get_parts_count()
-    colors_count = builder.vocab_manager.get_colors_count()
+    config_path = tmp_path / "test_integration_config.json"
+    yield str(config_path)
+    # Cleanup happens automatically with tmp_path
 
-    print(f"   Initial vocab size: {vocab_size}")
-    print(f"   Initial parts count: {parts_count}")
-    print(f"   Initial colors count: {colors_count}")
-    print("   ✓ VocabularyManager properly initialized")
 
-    # Test adding parts manually
-    print("\n3. Testing manual vocabulary updates...")
+@pytest.fixture
+def dataset_builder(test_config_path: str) -> DatasetBuilder:
+    """Create a DatasetBuilder instance for testing.
+    Args:
+        test_config_path (str): Path to the temporary config file.
+    Returns:
+        DatasetBuilder: An instance of DatasetBuilder.
+    """
+    return DatasetBuilder(test_config_path)
+
+
+def test_dataset_builder_initialization(dataset_builder: DatasetBuilder):
+    """Test DatasetBuilder initialization.
+    Args:
+        dataset_builder (DatasetBuilder): DatasetBuilder instance.
+    """
+
+    assert (
+        dataset_builder.vocab_manager is not None
+    ), "VocabularyManager should be initialized"
+
+    vocab_size = dataset_builder.vocab_manager.get_vocab_size()
+    assert vocab_size > 0, "Vocabulary should have initial size"
+
+
+def test_vocabulary_manager_initialization(dataset_builder: DatasetBuilder):
+    """Test VocabularyManager initialization within DatasetBuilder.
+    Args:
+        dataset_builder (DatasetBuilder): DatasetBuilder instance.
+    """
+
+    vocab_size = dataset_builder.vocab_manager.get_vocab_size()
+    parts_count = dataset_builder.vocab_manager.get_parts_count()
+    colors_count = dataset_builder.vocab_manager.get_colors_count()
+
+    assert (
+        vocab_size >= 28
+    ), "Should have at least special tokens and rotations (4 + 24)"
+    assert parts_count >= 0, "Parts count should be non-negative"
+    assert colors_count >= 0, "Colors count should be non-negative"
+
+
+def test_manual_vocabulary_updates(dataset_builder: DatasetBuilder):
+    """Test manual vocabulary updates
+    Args:
+        dataset_builder (DatasetBuilder): DatasetBuilder instance.
+    """
+
     test_parts = {"3001.dat", "3002.dat", "3003.dat"}
     test_colors = {1, 4, 14}
 
-    builder._update_vocabulary(test_parts, test_colors)
+    initial_parts = dataset_builder.vocab_manager.get_parts_count()
+    initial_colors = dataset_builder.vocab_manager.get_colors_count()
 
-    new_parts_count = builder.vocab_manager.get_parts_count()
-    new_colors_count = builder.vocab_manager.get_colors_count()
-    new_vocab_size = builder.vocab_manager.get_vocab_size()
+    dataset_builder._update_vocabulary(test_parts, test_colors)
 
-    print(f"   Parts count after update: {new_parts_count}")
-    print(f"   Colors count after update: {new_colors_count}")
-    print(f"   Vocab size after update: {new_vocab_size}")
+    new_parts_count = dataset_builder.vocab_manager.get_parts_count()
+    new_colors_count = dataset_builder.vocab_manager.get_colors_count()
 
-    assert new_parts_count == 3, f"Expected 3 parts, got {new_parts_count}"
-    assert new_colors_count == 3, f"Expected 3 colors, got {new_colors_count}"
-    print("   ✓ Vocabulary updated correctly")
+    assert new_parts_count == initial_parts + 3, "Should add 3 parts"
+    assert new_colors_count == initial_colors + 3, "Should add 3 colors"
 
-    # Test collecting brick IDs and colors
-    print("\n4. Testing brick data collection...")
-    from DatasetBuilder import BrickDataQuat
 
-    # Create some test data
-    builder.quat_data = [
-        BrickDataQuat(
+def test_brick_data_collection(dataset_builder: DatasetBuilder):
+    """Test collecting brick IDs and colors from data.
+    Args:
+        dataset_builder (DatasetBuilder): DatasetBuilder instance.
+    """
+
+    # Create test data using RawBrickData with world matrices
+    identity_matrix = np.eye(4)
+    identity_matrix[:3, 3] = [0.0, 0.0, 0.0]  # position at origin
+
+    second_matrix = np.eye(4)
+    second_matrix[:3, 3] = [20.0, 0.0, 0.0]  # position at x=20
+
+    dataset_builder.raw_data = [
+        RawBrickData(
             brick_id="3001.dat",
-            position=np.array([0.0, 0.0, 0.0]),
-            rotation_quat=np.array([1.0, 0.0, 0.0, 0.0]),
+            world_matrix=identity_matrix,
             color=1,
         ),
-        BrickDataQuat(
+        RawBrickData(
             brick_id="3002.dat",
-            position=np.array([20.0, 0.0, 0.0]),
-            rotation_quat=np.array([1.0, 0.0, 0.0, 0.0]),
+            world_matrix=second_matrix,
             color=4,
         ),
     ]
 
-    brick_ids = builder.collect_brick_ids()
-    colors = builder.collect_brick_colors()
+    brick_ids = dataset_builder.collect_brick_ids()
+    colors = dataset_builder.collect_brick_colors()
 
-    print(f"   Collected brick IDs: {brick_ids}")
-    print(f"   Collected colors: {colors}")
-    assert len(brick_ids) == 2
-    assert len(colors) == 2
-    print("   ✓ Brick data collected successfully")
+    assert len(brick_ids) == 2, "Should collect 2 unique brick IDs"
+    assert "3001.dat" in brick_ids and "3002.dat" in brick_ids
+    assert len(colors) == 2, "Should collect 2 unique colors"
+    assert 1 in colors and 4 in colors
 
-    # Test use_id_mapping
-    print("\n5. Testing use_id_mapping()...")
-    processed_data = builder.use_id_mapping()
 
-    print(f"   Processed {len(processed_data)} bricks")
-    if processed_data:
-        print(f"   Sample brick: {processed_data[0]}")
-        # Verify that indices are correct
-        brick_idx = processed_data[0].brick_idx
-        color_idx = processed_data[0].color_idx
-        print(f"   Brick index: {brick_idx}, Color index: {color_idx}")
-        print("   ✓ ID mapping works correctly")
+def test_id_mapping(dataset_builder: DatasetBuilder):
+    """Test ID mapping functionality.
+    Args:
+        dataset_builder (DatasetBuilder): DatasetBuilder instance.
+    """
 
-    # Test rotation index
-    print("\n6. Testing rotation index calculation...")
-    identity_quat = np.array([1.0, 0.0, 0.0, 0.0])
-    rot_idx = builder.vocab_manager.get_rotation_index(identity_quat)
-    print(f"   Identity rotation -> index {rot_idx}")
-    assert 0 <= rot_idx < 24
-    print("   ✓ Rotation index calculated correctly")
+    # Setup test data with RawBrickData
+    identity_matrix = np.eye(4)
+    identity_matrix[:3, 3] = [0.0, 0.0, 0.0]
 
-    # Verify the config file structure
-    print("\n7. Verifying config file structure...")
+    dataset_builder.raw_data = [
+        RawBrickData(
+            brick_id="3001.dat",
+            world_matrix=identity_matrix,
+            color=1,
+        ),
+    ]
+
+    # Update vocabulary with test data
+    brick_ids = dataset_builder.collect_brick_ids()
+    colors = dataset_builder.collect_brick_colors()
+    dataset_builder._update_vocabulary(brick_ids, colors)
+
+    # Test tokenization (which does the ID mapping)
+    dataset_builder.tokenize_brick_data()
+    processed_data = dataset_builder.tokenized_data
+
+    assert len(processed_data) == 1, "Should process 1 brick"
+
+    brick = processed_data[0]
+    assert hasattr(brick, "brick_idx"), "Processed brick should have brick_idx"
+    assert hasattr(brick, "color_idx"), "Processed brick should have color_idx"
+    assert brick.brick_idx is not None, "brick_idx should not be None"
+    assert brick.color_idx is not None, "color_idx should not be None"
+
+
+def test_rotation_index_calculation(dataset_builder: DatasetBuilder):
+    """Test rotation index calculation.
+    Args:
+        dataset_builder (DatasetBuilder): DatasetBuilder instance.
+    """
+
+    # Test with a rotation matrix instead of quaternion
+    identity_rotation = np.eye(3)
+    rot_idx = dataset_builder.vocab_manager.get_rotation_index(identity_rotation)
+
+    assert 0 <= rot_idx < 24, "Rotation index should be between 0 and 23"
+
+
+def test_config_file_structure(test_config_path: str, dataset_builder: DatasetBuilder):
+    """Test that the config file has the correct structure.
+    Args:
+        test_config_path (str): Path to the temporary config file.
+        dataset_builder (DatasetBuilder): DatasetBuilder instance.
+    """
+
+    # Config file is already saved during initialization
+    # Add a part to trigger a save
+    dataset_builder.vocab_manager.add_part("test.dat")
+
     with open(test_config_path, "r") as f:
         config_data = json.load(f)
 
-    print(f"   Config version: {config_data.get('version')}")
-    print(f"   Vocabulary keys: {list(config_data.get('vocabulary', {}).keys())}")
-    print(f"   Offsets: {config_data.get('offsets')}")
+    # Check required top-level keys
+    assert "version" in config_data, "Config should have version"
+    assert "vocabulary" in config_data, "Config should have vocabulary"
+    assert "offsets" in config_data, "Config should have offsets"
 
-    # Check required keys
-    assert "version" in config_data
-    assert "vocabulary" in config_data
-    assert "special" in config_data["vocabulary"]
-    assert "rotations" in config_data["vocabulary"]
-    assert "parts" in config_data["vocabulary"]
-    assert "colors" in config_data["vocabulary"]
-    print("   ✓ Config file structure is correct")
+    # Check vocabulary structure
+    vocab = config_data["vocabulary"]
+    assert "special" in vocab, "Vocabulary should have special tokens"
+    assert "rotations" in vocab, "Vocabulary should have rotations"
+    assert "parts" in vocab, "Vocabulary should have parts"
+    assert "colors" in vocab, "Vocabulary should have colors"
 
-    print("\n" + "=" * 60)
-    print("All integration tests passed! ✓")
-    print("=" * 60)
-
-    # Cleanup
-    Path(test_config_path).unlink(missing_ok=True)
-    print(f"\nCleaned up test file: {test_config_path}")
-
-
-if __name__ == "__main__":
-    try:
-        test_dataset_builder_integration()
-        print("\n✓ All integration tests completed successfully!")
-    except Exception as e:
-        print(f"\n✗ Test failed with error: {e}")
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)
+    # Verify special tokens
+    special = vocab["special"]
+    assert "PAD" in special and special["PAD"] == 0
+    assert "SOS" in special and special["SOS"] == 1
+    assert "EOS" in special and special["EOS"] == 2
+    assert "UNK" in special and special["UNK"] == 3

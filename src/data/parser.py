@@ -1,22 +1,16 @@
+import sys
+from pathlib import Path
 import numpy as np
-import logging
 from typing import NamedTuple
 
-from formating.customFormatter import CustomFormatter
-from config import Config
+# Add src to path for direct execution
+if __name__ == "__main__":
+    src_path = Path(__file__).parent.parent
+    sys.path.insert(0, str(src_path))
 
-# Set up logging
-# --------------------------------
-logger = logging.getLogger(__name__)
-logger.setLevel(Config.LOGGING_LEVEL)
+from ..utils.logging import setup_logging
 
-# create console handler with CustomFormatter
-ch = logging.StreamHandler()
-ch.setLevel(Config.LOGGING_LEVEL)
-ch.setFormatter(CustomFormatter())
-
-logger.addHandler(ch)
-# --------------------------------
+logger = setup_logging()
 
 
 mpd_file_path = "./mpd_files/test.mpd"
@@ -52,6 +46,14 @@ class MPDParser:
         """
         lines = []
         current_file = None
+
+        if not Path(self.mpd_file_path).exists():
+            logger.error(f"MPD file path does not exist: {self.mpd_file_path}")
+            return lines
+
+        if not Path(self.mpd_file_path).is_file():
+            logger.error(f"MPD file not found: {self.mpd_file_path}")
+            return lines
 
         with open(self.mpd_file_path, "r") as file:
             for line in file:
@@ -158,11 +160,13 @@ class MPDParser:
 
     def sort_bricks_by_position(self):
         """Sort the raw_data bricks by their position (x, y, z)., first by Y then X then Z. (y is up)"""
-        self.raw_data.sort(key=lambda brick: (
-            brick.world_matrix[1, 3],  # Y position
-            brick.world_matrix[0, 3],  # X position
-            brick.world_matrix[2, 3]   # Z position
-        ))
+        self.raw_data.sort(
+            key=lambda brick: (
+                brick.world_matrix[1, 3],  # Y position
+                brick.world_matrix[0, 3],  # X position
+                brick.world_matrix[2, 3],  # Z position
+            )
+        )
         return self.raw_data
 
 

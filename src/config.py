@@ -2,14 +2,14 @@ import logging
 
 
 class Config:
-    """Configuration settings for the codebase."""
+    """Configuration settings for the codebase. only storing consants for now."""
 
     # logging
-    LOGGING_LEVEL = logging.DEBUG
+    LOGGING_LEVEL = logging.INFO
 
     # dataset paths
-    RAW_DATASET_DIR = "./mpd_files/dataset/LDraw_sets/"
-    PARSED_DATASET_DIR = "./processed_sets/"
+    RAW_DATASET_DIR = "./dataset/mpd_files/"
+    TOKENIZED_DATASET_DIR = "./tokenized_sets/"
 
     ATLAS_CONFIG_PATH = "./atlas_config.json"
 

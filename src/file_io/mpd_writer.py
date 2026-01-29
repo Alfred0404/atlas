@@ -1,7 +1,24 @@
+import sys
+from pathlib import Path
 import numpy as np
 from typing import List
-from MPDParser import RawBrickData
-from utils import get_position_from_world_matrix, get_rotation_matrix_from_world_matrix
+
+# Add src to path for direct execution
+if __name__ == "__main__":
+    src_path = Path(__file__).parent.parent
+    sys.path.insert(0, str(src_path))
+
+from ..utils.logging import setup_logging
+
+logger = setup_logging()
+src_path = Path(__file__).parent.parent
+sys.path.insert(0, str(src_path))
+
+from ..data.parser import RawBrickData
+from ..maths.transforms import (
+    get_position_from_world_matrix,
+    get_rotation_matrix_from_world_matrix,
+)
 
 
 def write_mpd_file(
@@ -14,6 +31,11 @@ def write_mpd_file(
         raw_data (List[RawBrickData]): List of brick data with world matrices.
         model_name (str): Name of the model (default: "main").
     """
+
+    if not Path(output_path).parent.exists():
+        logger.error(f"Output directory does not exist: {Path(output_path).parent}")
+        return
+
     with open(output_path, "w") as file:
         # Write header
         file.write(f"0 FILE {model_name}.ldr\n")
@@ -45,7 +67,7 @@ def write_mpd_file(
 
 if __name__ == "__main__":
     # Example usage with mpd_parser
-    from MPDParser import MPDParser
+    from src.data.parser import MPDParser
 
     mpd_file_path = "./mpd_files/test.mpd"
     parser = MPDParser(mpd_file_path)
