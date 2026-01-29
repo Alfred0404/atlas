@@ -21,7 +21,7 @@ from ..config import Config
 logger = setup_logging()
 
 
-class ProcessedBrickData(NamedTuple):
+class TokenizedBrickData(NamedTuple):
     """Training ready data with brick_id and color mapped to integers"""
 
     brick_idx: int  # mapped unique integer for brick_id
@@ -46,13 +46,12 @@ class DatasetBuilder:
         """
         self.vocab_manager = VocabularyManager(atlas_config_path)
         self.tokenizer = AtlasTokenizer()
-        self.global_max_distance = 0.0
         self.all_brick_ids: Set[str] = set()
         self.all_colors: Set[int] = set()
 
         # Data storage for processing individual files
         self.raw_data: List[RawBrickData] = []
-        self.processed_data: List[ProcessedBrickData] = []
+        self.tokenized_data: List[TokenizedBrickData] = []
         self.final_tensor = None
 
     def process_dataset(self) -> None:
@@ -81,7 +80,7 @@ class DatasetBuilder:
         logger.info(f"Total vocabulary size: {self.vocab_manager.get_vocab_size()}")
 
         if self.process_dataset:
-            logger.info(f"final processed sample: {self.processed_data[0]}")
+            logger.info(f"final processed sample: {self.tokenized_data[0]}")
 
     def _process_single_file(self, mpd_file_path: str) -> bool:
         """
@@ -129,6 +128,12 @@ class DatasetBuilder:
         # Tokenize all brick attributes (positions, IDs, colors)
         self.tokenize_brick_data()
 
+        self._to_tensor()
+
+        self.save_dataset(
+            str(Path(Config.TOKENIZED_DATASET_DIR) / f"{mpd_file_path.stem}.npy")
+        )
+
         return True
 
     def center_around_origin(self) -> None:
@@ -174,32 +179,6 @@ class DatasetBuilder:
         # 5. Mise à jour des matrices mondiales
         for brick in self.raw_data:
             brick.world_matrix[:3, 3] -= snapped_offset
-
-    def calculate_max_brick_distance(self) -> float:
-        """
-        Calculate the maximum distance between a brick and the origin.
-
-        Returns:
-            The maximum distance from origin to any brick position.
-        """
-        max_distance_squared = 0.0
-
-        for brick in self.raw_data:
-            position = get_position_from_world_matrix(brick.world_matrix)
-            distance_squared = np.dot(
-                position, position
-            )  # squared distance from origin
-
-            if distance_squared > max_distance_squared:
-                max_distance_squared = distance_squared
-
-        max_distance = np.sqrt(max_distance_squared)
-        logger.debug(f"Max brick distance: {max_distance}")
-
-        # Update global max distance
-        self._update_global_max_distance(max_distance)
-
-        return max_distance
 
     def collect_brick_ids(self) -> Set[str]:
         """
@@ -269,7 +248,7 @@ class DatasetBuilder:
             logger.warning("No raw data to tokenize.")
             return
 
-        self.processed_data = []  # Clear previous data
+        self.tokenized_data = []  # Clear previous data
 
         for brick in self.raw_data:
             # Extract position and rotation from world matrix
@@ -290,8 +269,8 @@ class DatasetBuilder:
             rotation_idx = self.tokenizer.rotation_matrix_to_token(rotation_matrix)
 
             # Create processed brick data with all tokenized attributes
-            self.processed_data.append(
-                ProcessedBrickData(
+            self.tokenized_data.append(
+                TokenizedBrickData(
                     brick_idx=brick_idx,
                     position=tokenized_position,
                     rotation_idx=rotation_idx,
@@ -300,36 +279,25 @@ class DatasetBuilder:
             )
 
         logger.info(
-            f"Tokenized {len(self.processed_data)} bricks (positions, IDs, and colors)"
+            f"Tokenized {len(self.tokenized_data)} bricks (positions, IDs, and colors)"
         )
-
-    def _update_global_max_distance(self, distance: float) -> None:
-        """
-        Update the global maximum distance if the new distance is larger.
-
-        Args:
-            distance: New distance to compare against current maximum.
-        """
-        if distance > self.global_max_distance:
-            self.global_max_distance = distance
-            logger.debug(f"Updated global max distance to: {distance}")
 
     def _to_tensor(self) -> None:
         """
-        Convert ProcessedBrickData to a numpy tensor.
+        Convert TokenizedBrickData to a numpy tensor.
 
-        Creates a tensor by concatenating brick attributes (index, position,
-        rotation matrix flattened, and color index) for each brick.
+        Creates a tensor by concatenating brick attributes (brick index, position,
+        rotation index, and color index) for each brick.
         """
 
-        for brick in self.processed_data:
+        for brick in self.tokenized_data:
             # create the tensor for each brick by unpacking its attributes
-            # flatten rotation matrix from (3,3) to (9,)
+            # [brick_idx, x, y, z, rotation_idx, color_idx]
             brick_tensor = np.concatenate(
                 (
                     [brick.brick_idx],
                     brick.position,
-                    brick.rotation_matrix.flatten(),
+                    [brick.rotation_idx],
                     [brick.color_idx],
                 )
             )

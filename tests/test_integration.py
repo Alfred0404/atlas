@@ -155,7 +155,7 @@ def test_id_mapping(dataset_builder: DatasetBuilder):
 
     # Test tokenization (which does the ID mapping)
     dataset_builder.tokenize_brick_data()
-    processed_data = dataset_builder.processed_data
+    processed_data = dataset_builder.tokenized_data
 
     assert len(processed_data) == 1, "Should process 1 brick"
 
