@@ -26,7 +26,7 @@ def main():
     dataset_builder = DatasetBuilder(Config.ATLAS_CONFIG_PATH)
 
     # Process all MPD files in the dataset directory
-    dataset_builder.process_dataset()
+    dataset_builder.process_dataset(max_files=10)
 
     print("=" * 60)
     print("Dataset processing complete!")

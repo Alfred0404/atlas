@@ -1,7 +1,8 @@
 import sys
 from pathlib import Path
-from typing import NamedTuple, List, Set
+from typing import NamedTuple, List, Set, Optional
 import numpy as np
+from tqdm import tqdm
 
 # Add src to path for direct execution
 if __name__ == "__main__":
@@ -54,12 +55,15 @@ class DatasetBuilder:
         self.tokenized_data: List[TokenizedBrickData] = []
         self.final_tensor = None
 
-    def process_dataset(self) -> None:
+    def process_dataset(self, max_files: Optional[int] = None) -> None:
         """
         Process all MPD files in the raw dataset directory.
 
         Iterates through all .mpd files, parses them, transforms the data,
         and updates the vocabulary with encountered parts and colors.
+
+        Args:
+            max_files: Maximum number of files to process. If None, process all files.
         """
         logger.info("Starting dataset processing...\n")
 
@@ -69,17 +73,23 @@ class DatasetBuilder:
             logger.error(f"No MPD files found in directory: {Config.RAW_DATASET_DIR}")
             return
 
-        for mpd_file in all_files:
+        # Limit number of files if specified
+        if max_files is not None:
+            all_files = all_files[:max_files]
+            logger.info(f"Processing limited to {len(all_files)} files.\n")
+
+        for mpd_file in tqdm(all_files, desc="Processing MPD files", unit="file"):
             if not self._process_single_file(mpd_file):
-                logger.warning(f"Skipping file due to processing error: {mpd_file}")
+                logger.warning(f"Skipping file due to processing error: {mpd_file}\n")
                 continue
 
         logger.info("Dataset processing complete.\n")
+        logger.info("Vocabulary summary:\n")
         logger.info(f"Total unique parts: {self.vocab_manager.get_parts_count()}")
         logger.info(f"Total unique colors: {self.vocab_manager.get_colors_count()}")
         logger.info(f"Total vocabulary size: {self.vocab_manager.get_vocab_size()}")
 
-        if self.process_dataset:
+        if self.tokenized_data:
             logger.info(f"final processed sample: {self.tokenized_data[0]}")
 
     def _process_single_file(self, mpd_file_path: str) -> bool:
@@ -112,8 +122,6 @@ class DatasetBuilder:
 
         # Transform data
         self.center_around_origin()
-
-        logger.info(f"Transformation completed for {mpd_file_path}\n")
 
         # Collect and update vocabulary
         new_brick_ids = self.collect_brick_ids()
@@ -309,7 +317,7 @@ class DatasetBuilder:
                     (self.final_tensor, brick_tensor[np.newaxis, :])
                 )
 
-        logger.info(f"Final tensor shape: {self.final_tensor.shape}")
+        logger.debug(f"Final tensor shape: {self.final_tensor.shape}")
         logger.debug(
             f"Final tensor data: {self.final_tensor[0:5, :]}"
         )  # log first 5 entries
@@ -323,11 +331,12 @@ class DatasetBuilder:
         """
         if self.final_tensor is not None:
             np.save(output_path, self.final_tensor)
-            logger.info(f"Dataset saved to {output_path}")
+            logger.info(f"Dataset saved to {output_path}\n")
         else:
-            logger.warning("Final tensor is empty. Nothing to save.")
+            logger.warning("Final tensor is empty. Nothing to save.\n")
 
 
 if __name__ == "__main__":
     dataset_builder = DatasetBuilder(Config.ATLAS_CONFIG_PATH)
-    dataset_builder.process_dataset()
+    # Process only 10 files for testing
+    dataset_builder.process_dataset(max_files=10)
