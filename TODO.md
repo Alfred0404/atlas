@@ -4,19 +4,19 @@
 
 - [ ] 🔴 json i/o optimisation ([builder.py](src/data/builder.py), [vocabulary.py](src/core/vocabulary.py))
 - [ ] 🔴 hardcoded magic numbers ([config.py](src/config.py))
-- [ ] 🟢 tests files in prod environnment
 - [ ] 🟢 Check how other point transformers handle positions
 
 <details>
     <summary style="font-style:bold">Done</summary>
-- [x] add rotation matrix similarity mapping to map rotation to ids ([tokenizer.py](src/core/tokenizer.py), 2026-01-27)
+- [x]Add rotation matrix similarity mapping to map rotation to ids ([tokenizer.py](src/core/tokenizer.py), 2026-01-27)
 - [x] 🟡 Change the way of centering ([builder.py](src/data/builder.py))
 - [x] 🟡 add test coverage ([tests/](tests/))
+- [x] 🟢 tests files in prod environnment
 </details>
 
 ## Encoder
 
-- [ ] "Flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones ([builder.py](src/data/builder.py))
+- [x] "Flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones ([builder.py](src/data/builder.py))
 
 <details>
     <summary style="font-style:bold">Done</summary>
