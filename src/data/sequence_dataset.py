@@ -62,3 +62,16 @@ class SequenceDataset(Dataset):
         )  # Add start and end tokens to the sequence
 
         return torch.tensor(full_sequence, dtype=torch.long)
+
+if __name__ == "__main__":
+    # Example usage
+    dataset = SequenceDataset(npy_dir="./tokenized_sets", max_bricks=400, max_files=10)
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=2, collate_fn=collate_fn, shuffle=True
+    )
+
+    for batch_idx, (x, y) in enumerate(dataloader):
+        print(f"Batch {batch_idx}:")
+        print("Input (x):", x)
+        print("Target (y):", y)
+        break

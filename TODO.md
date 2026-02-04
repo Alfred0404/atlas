@@ -2,6 +2,7 @@
 
 ## High Priority
 
+- [ ] scrap more files https://www.eurobricks.com/forum/forums/topic/48285-key-topic-official-lego-sets-made-in-ldraw/#comment-849693, https://library.ldraw.org/omr/sets
 - [ ] 🔴 json i/o optimisation ([builder.py](src/data/builder.py), [vocabulary.py](src/core/vocabulary.py))
 - [ ] 🔴 hardcoded magic numbers ([config.py](src/config.py))
 - [ ] 🟢 Check how other point transformers handle positions
