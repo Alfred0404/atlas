@@ -16,6 +16,7 @@ sys.path.insert(0, str(project_root))
 
 from src.data.builder import DatasetBuilder
 from src.data.parser import RawBrickData
+import src.data.builder as builder_module
 from src.config import Config
 from src.core.vocabulary import VocabularyManager
 
@@ -211,3 +212,79 @@ def test_config_file_structure(test_config_path: str, dataset_builder: DatasetBu
     assert "SOS" in special and special["SOS"] == 1
     assert "EOS" in special and special["EOS"] == 2
     assert "UNK" in special and special["UNK"] == 3
+
+
+def test_process_single_file_resets_tensor_state(
+    tmp_path: Path, test_config_path: str, monkeypatch: pytest.MonkeyPatch
+):
+    """Ensure each processed file saves only its own tensor rows."""
+
+    output_dir = tmp_path / "tokenized_sets"
+    output_dir.mkdir()
+
+    original_config_path = Config.ATLAS_CONFIG_PATH
+    original_output_dir = Config.TOKENIZED_DATASET_DIR
+
+    monkeypatch.setattr(Config, "ATLAS_CONFIG_PATH", test_config_path)
+    monkeypatch.setattr(Config, "TOKENIZED_DATASET_DIR", str(output_dir))
+
+    identity_matrix = np.eye(4)
+    first_shifted_matrix = np.eye(4)
+    first_shifted_matrix[:3, 3] = [20.0, 0.0, 0.0]
+    second_matrix = np.eye(4)
+    second_matrix[:3, 3] = [40.0, 0.0, 0.0]
+
+    raw_data_by_file = {
+        "first.mpd": [
+            RawBrickData("3001.dat", identity_matrix.copy(), 1),
+            RawBrickData("3002.dat", first_shifted_matrix.copy(), 4),
+        ],
+        "second.mpd": [
+            RawBrickData("3003.dat", second_matrix.copy(), 14),
+        ],
+    }
+
+    class FakeMPDParser:
+        def __init__(self, mpd_file_path: str):
+            self.file_name = Path(mpd_file_path).name
+            self._submodels = {"main.ldr": ["dummy"]}
+            self.raw_data = []
+
+        def flatten(self, model_name: str, parent_matrix: np.ndarray):
+            self.raw_data = [
+                RawBrickData(brick.brick_id, brick.world_matrix.copy(), brick.color)
+                for brick in raw_data_by_file[self.file_name]
+            ]
+            return self.raw_data
+
+        def sort_bricks_by_position(self):
+            self.raw_data.sort(
+                key=lambda brick: (
+                    brick.world_matrix[1, 3],
+                    brick.world_matrix[0, 3],
+                    brick.world_matrix[2, 3],
+                )
+            )
+            return self.raw_data
+
+    monkeypatch.setattr(builder_module, "MPDParser", FakeMPDParser)
+
+    dataset_builder = DatasetBuilder(test_config_path)
+
+    first_file = tmp_path / "first.mpd"
+    second_file = tmp_path / "second.mpd"
+
+    assert dataset_builder._process_single_file(first_file)
+    assert dataset_builder._process_single_file(second_file)
+
+    first_tensor = np.load(output_dir / "first.npy")
+    second_tensor = np.load(output_dir / "second.npy")
+
+    assert first_tensor.shape[0] == 2, "First file should save exactly 2 bricks"
+    assert second_tensor.shape[0] == 1, "Second file should save exactly 1 brick"
+    assert (
+        second_tensor.shape[0] != first_tensor.shape[0] + 1
+    ), "Second file should not accumulate bricks from the first file"
+
+    monkeypatch.setattr(Config, "ATLAS_CONFIG_PATH", original_config_path)
+    monkeypatch.setattr(Config, "TOKENIZED_DATASET_DIR", original_output_dir)

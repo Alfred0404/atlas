@@ -68,8 +68,11 @@ class DatasetBuilder:
         logger.info("Starting dataset processing...\n")
 
         all_files = [
-            f for f in Path(Config.RAW_DATASET_DIR).glob("*.mpd")
-            if not (Path(Config.TOKENIZED_DATASET_DIR) / f.stem).with_suffix(".npy").exists()
+            f
+            for f in Path(Config.RAW_DATASET_DIR).glob("*.mpd")
+            if not (Path(Config.TOKENIZED_DATASET_DIR) / f.stem)
+            .with_suffix(".npy")
+            .exists()
         ]
 
         if not all_files:
@@ -108,6 +111,11 @@ class DatasetBuilder:
         Returns:
             bool: True if processing succeeded, False if file should be skipped.
         """
+        # Reset per-file state so each saved dataset contains only the current model.
+        self.raw_data = []
+        self.tokenized_data = []
+        self.final_tensor = None
+
         parser = MPDParser(str(mpd_file_path))
 
         logger.info(f"Processing {mpd_file_path} with {len(self.raw_data)} bricks.")
