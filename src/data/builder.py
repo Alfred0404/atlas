@@ -67,7 +67,10 @@ class DatasetBuilder:
         """
         logger.info("Starting dataset processing...\n")
 
-        all_files = list(Path(Config.RAW_DATASET_DIR).glob("*.mpd"))
+        all_files = [
+            f for f in Path(Config.RAW_DATASET_DIR).glob("*.mpd")
+            if not (Path(Config.TOKENIZED_DATASET_DIR) / f.stem).with_suffix(".npy").exists()
+        ]
 
         if not all_files:
             logger.error(f"No MPD files found in directory: {Config.RAW_DATASET_DIR}")
@@ -94,10 +97,16 @@ class DatasetBuilder:
 
     def _process_single_file(self, mpd_file_path: str) -> bool:
         """
-        Process a single MPD file.
+        Process a single MPD file through the complete pipeline.
+
+        Parses the MPD file, extracts and transforms brick data, collects vocabulary,
+        tokenizes attributes, converts to tensor format, and saves the processed dataset.
 
         Args:
             mpd_file_path: Path to the MPD file to process.
+
+        Returns:
+            bool: True if processing succeeded, False if file should be skipped.
         """
         parser = MPDParser(str(mpd_file_path))
 

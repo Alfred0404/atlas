@@ -2,6 +2,7 @@
 
 ## High Priority
 
+- [ ] update the readme by removing all the unnecessary methods listing
 - [ ] implement logit masking during inference. since we know that a brick vector is always the same, we can check the next token position in the array, and mask all the other tokens so the softmax is only applied on the right token range
 - [ ] scrap more files https://www.eurobricks.com/forum/forums/topic/48285-key-topic-official-lego-sets-made-in-ldraw/#comment-849693, https://library.ldraw.org/omr/sets
 - [ ] 🔴 json i/o optimisation ([builder.py](src/data/builder.py), [vocabulary.py](src/core/vocabulary.py))

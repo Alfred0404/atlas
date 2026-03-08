@@ -87,22 +87,22 @@ $$X_i = [ID_{brick}, color, x, y, z, a, b, c, d, e, f, g, h, i]$$
 ```
 ATLAS/
 ├── src/
-│   ├── config                .py                           # Configuration class (constants)
-│                ├── MPDParser.py                        # MPD f              ile parser
-│   ├── DatasetBuilder.py                             # Dataset processing pipeline
-│   ├── VocabularyManager.py                        # Vocabulary management for atlas_config.json
-│   ├──       utils.py                            # Matrix manipula           tion utilities
-│   ├── rotation_matrix_to_quaternion.p             y    # Rotation conversion utilities
+│   ├── config                .py           # Configuration class (constants)
+│                ├── MPDParser.py           # MPD file parser
+│   ├── DatasetBuilder.py                   # Dataset processing pipeline
+│   ├── VocabularyManager.py                # Vocabulary management for atlas_config.json
+│   ├──       utils.py                      # Matrix manipula           tion utilities
+│   ├── rotation_matrix_to_quaternion.py    # Rotation conversion utilities
 │   ├── write_mpd_file.py                   # MPD file                 writer
-│   ├── scrap_mpd_files.py                                       # mpd file scraper (only works on se            ymouria.pl website)
+│   ├── scrap_mpd_files.py                  # mpd file scraper (only works on seymouria.pl website)
 │   └── formating/
-│                └── customFormatter.py              # Custom logging                formatter
+│                └── customFormatter.py     # Custom logging                formatter
 ├── mpd_files/
-│   ├── dataset               /                            # Input                      MPD files
-│   │   ├── LDraw_sets/                            # Input MPD files
-│   │   └── seymouria_ldraw      _official_sets/  # Input MPD files
-│   └── generate                    d/                          # Generated output files
-├──           tests/                                  # Test suite
+│   ├── dataset/                            # Input MPD files
+│   │   ├── LDraw_sets/                     # Input MPD files
+│   │   └── seymouria_ldraw_official_sets/  # Input MPD files
+│   └── generated/                          # Generated output files
+├──           tests/                        # Test suite
 │   ├── test_vocabulary.py                  # Unit tests for VocabularyManager
 │   └── test_integration.py                 # Integration tests for DatasetBuilder
 ├── public/                                 # all public resources (mostly images)
