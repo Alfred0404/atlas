@@ -55,3 +55,4 @@ checkpoints/
 *.ldr
 *.dat
 *.npy
+*.claude
