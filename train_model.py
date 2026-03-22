@@ -29,13 +29,31 @@ def main():
     )
     logger.info(f"Dataset size: {len(dataset)} sequences")
 
-    # Ensure vocab_size covers all tokens present in the dataset
-    max_token = max(dataset[i].max().item() for i in range(len(dataset)))
+    # Scan dataset: expand vocab_size if needed, drop files with invalid tokens
+    logger.info("Scanning dataset for token range...")
+    max_token = 0
+    bad_indices = []
+    for i in range(len(dataset)):
+        seq = dataset[i]
+        if seq.min().item() < 0:
+            bad_indices.append(i)
+            continue
+        val = seq.max().item()
+        if val > max_token:
+            max_token = val
+    if bad_indices:
+        logger.warning(
+            f"Dropping {len(bad_indices)} sequences with negative tokens "
+            f"(positions out of bounds)"
+        )
+        # Remove bad files from dataset (iterate in reverse to preserve indices)
+        for i in sorted(bad_indices, reverse=True):
+            dataset.npy_files.pop(i)
+    logger.info(f"Max token in dataset: {max_token}, clean sequences: {len(dataset)}")
     if max_token >= vocab_size:
         vocab_size = max_token + 1
         logger.warning(
-            f"Dataset contains tokens up to {max_token}, "
-            f"expanding vocab_size to {vocab_size}"
+            f"Expanding vocab_size to {vocab_size} to cover all tokens"
         )
 
     # Config

@@ -2,16 +2,20 @@
 
 ## High Priority
 
-- [ ] update the readme by removing all the unnecessary methods listing
-- [ ] implement logit masking during inference. since we know that a brick vector is always the same, we can check the next token position in the array, and mask all the other tokens so the softmax is only applied on the right token range
-- [ ] scrap more files https://www.eurobricks.com/forum/forums/topic/48285-key-topic-official-lego-sets-made-in-ldraw/#comment-849693, https://library.ldraw.org/omr/sets
-- [ ] 🔴 json i/o optimisation ([builder.py](src/data/builder.py), [vocabulary.py](src/core/vocabulary.py))
+- [ ] Sort/classify sets by theme using Rebrickable API (map set numbers to themes, enable theme-filtered or theme-conditioned training)
+- [ ] 🔴 json i/o optimisation ([builder.py](src/data/builder.py), [vocabulary.py](src/core/vocabulary.py), [tokenizer.py](src/core/tokenizer.py))
+  - [ ] Tokenizer relit `atlas_config.json` à chaque brique/attribut — cacher le vocab en mémoire ou passer le VocabularyManager directement
+  - [ ] `add_part()` / `add_color()` sauvegardent le JSON à chaque ajout — batch les écritures et faire un seul `_save_config()` à la fin
 - [ ] 🔴 hardcoded magic numbers ([config.py](src/config.py))
+- [ ] Larger training dataset + train/val split with early stopping
 - [ ] 🟢 Check how other point transformers handle positions
 
 <details>
     <summary style="font-style:bold">Done</summary>
-- [x]Add rotation matrix similarity mapping to map rotation to ids ([tokenizer.py](src/core/tokenizer.py), 2026-01-27)
+- [x] update the readme by removing all the unnecessary methods listing
+- [x] implement logit masking during inference
+- [x] scrap more files (OMR scraper implemented in [omr_scraper.py](src/file_io/omr_scraper.py))
+- [x] Add rotation matrix similarity mapping to map rotation to ids ([tokenizer.py](src/core/tokenizer.py), 2026-01-27)
 - [x] 🟡 Change the way of centering ([builder.py](src/data/builder.py))
 - [x] 🟡 add test coverage ([tests/](tests/))
 - [x] 🟢 tests files in prod environnment
@@ -19,22 +23,32 @@
 
 ## Encoder
 
-- [x] "Flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones ([builder.py](src/data/builder.py))
-
 <details>
     <summary style="font-style:bold">Done</summary>
+- [x] "Flatten" again, to get all the bricks within one vector $[ID_1, X_1, Y_1, Z_1, ROT_1, COLOR_1, ID_2, ...]$, and treat a lego set as a sequence, where the transformer predicts the next token based on all the previous ones ([builder.py](src/data/builder.py))
 - [x] Replace true values by their corresponding idx in the vocab (tokenize the dataset) (2026-01-20)
 </details>
 
 ## Decoder
 
-- [ ] 🟡 Group tokens by blocs of 6 (group them by bricks)
-- [ ] 🟡 De-binning (from bin idx to real position) ([tokenizer.py](src/core/tokenizer.py))
-- [ ] 🟡 Snapping positions to the real grid
-- [ ] 🟡 Reconstruct an output `.mpd` file, ready to be displayed in LDView ([mpd_writer.py](src/file_io/mpd_writer.py))
+<details>
+    <summary style="font-style:bold">Done</summary>
+- [x] 🟡 Group tokens by blocs of 6 (group them by bricks) ([generate.py](src/model/generate.py))
+- [x] 🟡 De-binning (from bin idx to real position) ([tokenizer.py](src/core/tokenizer.py))
+- [x] 🟡 Reconstruct an output `.mpd` file, ready to be displayed in LDView ([generate_model.py](generate_model.py))
+</details>
+
+## Model
+
+- [ ] Theme-conditioned generation (add theme token to sequences)
+- [ ] Grid snapping for generated positions
 
 <details>
     <summary style="font-style:bold">Done</summary>
+- [x] Decoder-only transformer with field embeddings ([transformer.py](src/model/transformer.py), 2026-03-22)
+- [x] Training loop with AdamW + cosine LR ([train.py](src/model/train.py), 2026-03-22)
+- [x] Generation pipeline with temperature + top-k sampling ([generate.py](src/model/generate.py), 2026-03-22)
+- [x] MPD export from generated tokens ([generate_model.py](generate_model.py), 2026-03-22)
 </details>
 
 ## Project Structure

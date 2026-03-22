@@ -24,7 +24,7 @@ def main():
 
     dataset_builder = DatasetBuilder(Config.ATLAS_CONFIG_PATH)
 
-    dataset_builder.process_dataset(max_files=10)
+    dataset_builder.process_dataset()
 
     print("=" * 60)
     print("Dataset processing complete!")
