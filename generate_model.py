@@ -1,6 +1,7 @@
-import json
+import os
 import torch
 import numpy as np
+from datetime import datetime
 
 from src.config import Config
 from src.core.tokenizer import AtlasTokenizer
@@ -89,8 +90,9 @@ def main():
 
     # Convert to RawBrickData and write MPD
     raw_bricks = tokens_to_raw_bricks(bricks, vocab_manager)
-    output_path = "./generated_sets/generated.mpd"
-    write_mpd_file(output_path, raw_bricks, model_name="atlas_generated")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = f"./generated_sets/generated_{timestamp}.mpd"
+    write_mpd_file(output_path, raw_bricks, model_name=f"atlas_{timestamp}")
     logger.info(f"MPD file written to {output_path}")
 
 

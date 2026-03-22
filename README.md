@@ -9,9 +9,9 @@
 
 ## Overview
 
-ATLAS is a LEGO dataset preprocessing pipeline for autoregressive sequence models.
+ATLAS is an autoregressive transformer that learns to generate LEGO models. The pipeline covers the full workflow: parsing raw LDraw files, tokenizing bricks into sequences, training a decoder-only transformer, and generating new models from scratch.
 
-The current repository focuses on turning LDraw `.mpd` and `.ldr` files into tokenized sequences that can later be used to train a transformer-like model. In practice, it:
+In practice, it:
 
 - parses hierarchical LEGO models from MPD files
 - flattens submodels into world-space brick placements
@@ -19,17 +19,22 @@ The current repository focuses on turning LDraw `.mpd` and `.ldr` files into tok
 - builds a vocabulary for parts, colors, and rotations
 - tokenizes each brick into a fixed 6-token representation
 - saves processed sets as `.npy` files
+- trains a GPT-style transformer on tokenized sequences
+- generates new LEGO models and exports them as `.mpd` files
 
-This repository does not yet contain a model implementation, training loop, inference pipeline, or generation workflow. The preprocessing side is the part that is currently implemented.
+<div align="center">
+  <img src="public/first_generation.png" alt="First generation from the ATLAS model" width="500">
+  <p><em>First generation from the ATLAS model</em></p>
+</div>
 
 ## Current State
 
 - preprocessing pipeline is implemented and working
 - vocabulary is stored in `atlas_config.json`
-- tokenized datasets are already being generated in `tokenized_sets/`
+- tokenized datasets are generated in `tokenized_sets/`
+- decoder-only transformer implemented and trainable
+- generation pipeline exports `.mpd` files to `generated_sets/`
 - pytest coverage exists for rotations, vocabulary, and builder integration
-- `src/model/` is still empty
-- `generated_sets/` is still empty
 
 ## Dataset Representation
 
@@ -47,14 +52,27 @@ At training time, a full set is flattened into a 1D sequence and wrapped with sp
 
 Positions are discretized into bins using the spatial settings defined in `src/config.py` and mirrored in `atlas_config.json`.
 
+## Model Architecture
+
+ATLAS uses a **decoder-only transformer** (GPT-style):
+
+- 3 summed embeddings: token + absolute position + intra-brick field
+- 6 transformer layers with pre-norm (`norm_first=True`)
+- 256-dim model, 8 attention heads, 1024 FFN dim
+- field-based logit masking at inference to enforce valid token structure
+- ~7M parameters
+
 ## Project Layout
 
 ```text
 ATLAS/
 ├── atlas_config.json           # Active vocabulary and spatial configuration
+├── train_model.py              # Entry point for model training
+├── generate_model.py           # Entry point for generation
 ├── dataset/
 │   └── mpd_files/              # Raw .mpd / .ldr LEGO files
-├── generated_sets/             # Reserved for generated outputs (currently empty)
+├── generated_sets/             # Generated .mpd outputs
+├── checkpoints/                # Model checkpoints
 ├── public/                     # Images and public assets
 ├── src/
 │   ├── config.py               # Global constants and paths
@@ -72,7 +90,11 @@ ATLAS/
 │   ├── maths/
 │   │   ├── rotations.py        # Discrete rotation generation and matching
 │   │   └── transforms.py       # Position and rotation extraction helpers
-│   ├── model/                  # Model code placeholder (currently empty)
+│   ├── model/
+│   │   ├── config.py           # ModelConfig dataclass
+│   │   ├── transformer.py      # ATLASTransformer (nn.Module)
+│   │   ├── train.py            # Trainer class
+│   │   └── generate.py         # Generator class (inference)
 │   └── utils/
 │       └── logging.py          # Logging setup
 ├── tests/
@@ -95,9 +117,12 @@ Raw MPD/LDR
   -> vocabulary update
   -> tokenization
   -> .npy tensor per set
+  -> ATLASTransformer (training)
+  -> Generator (inference)
+  -> MPD file output
 ```
 
-The main processing path is currently driven by `DatasetBuilder` in `src/data/builder.py`.
+The preprocessing path is driven by `DatasetBuilder` in `src/data/builder.py`.
 
 ## Installation
 
@@ -116,42 +141,45 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-`requirements.txt` covers the main preprocessing pipeline and tests.
+For GPU training, install PyTorch with CUDA support:
 
-Some optional utilities currently rely on extra packages that are not yet listed there:
-
-- `torch` for `src/data/sequence_dataset.py`
-- `requests` and `beautifulsoup4` for `src/file_io/scraper.py`
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu124
+```
 
 ## Usage
 
-Run the dataset builder:
+### Dataset Processing
 
 ```bash
 python src/main.py
 ```
-
-At the moment, `src/main.py` processes up to 10 `.mpd` files by default.
 
 Outputs are written to:
 
 - `tokenized_sets/` for processed numpy arrays
 - `atlas_config.json` for vocabulary/config updates
 
-## Testing
+### Training
 
-Run the full test suite:
+```bash
+python train_model.py
+```
+
+Checkpoints are saved to `checkpoints/`.
+
+### Generation
+
+```bash
+python generate_model.py
+```
+
+Generated `.mpd` files are saved to `generated_sets/` with a timestamp. Open them in any LDraw viewer (Studio, LDView, etc.).
+
+## Testing
 
 ```bash
 pytest
-```
-
-Run a specific test file:
-
-```bash
-pytest tests/test_integration.py
-pytest tests/test_rotations.py
-pytest tests/test_vocabulary.py
 ```
 
 The current tests cover:
@@ -174,12 +202,8 @@ Useful references:
 
 ## Roadmap
 
-The preprocessing foundation exists, but the project is not at the modeling stage yet. The main remaining areas are:
-
-- decoder / detokenization path
-- MPD reconstruction from generated sequences
-- transformer architecture and training loop
-- inference-time token masking
+- larger and more diverse training dataset
+- train/val split and early stopping
 - more dataset scraping and cleanup
 
 See `TODO.md` for the working backlog.
