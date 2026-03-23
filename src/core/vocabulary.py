@@ -118,12 +118,25 @@ class VocabularyManager:
         logger.debug(f"Generated {len(rotation_vocab)} rotation entries")
         return rotation_vocab
 
+    def _recalculate_offsets(self) -> None:
+        """Recalculate parts offset and vocab_size from current vocabulary state."""
+        colors_offset = self.config_data["offsets"]["colors"]
+        num_colors = len(self.config_data["vocabulary"]["colors"])
+        num_parts = len(self.config_data["vocabulary"]["parts"])
+        self.config_data["offsets"]["parts"] = colors_offset + num_colors
+        self.config_data["vocab_size"] = colors_offset + num_colors + num_parts
+
     def _save_config(self) -> None:
         """Save the current configuration to the JSON file."""
-
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(self.config_data, f, indent=2)
         logger.debug(f"Configuration saved to {self.config_path}")
+
+    def save(self) -> None:
+        """Explicitly save the current configuration to disk."""
+        self._recalculate_offsets()
+        self._save_config()
+        logger.info(f"Vocabulary saved to {self.config_path}")
 
     def add_part(self, part_id: str) -> int:
         """
@@ -143,18 +156,8 @@ class VocabularyManager:
             self.config_data["vocabulary"]["parts"] = parts
 
         if part_id not in parts:
-            # Calculate the new index based on current vocab size
-            current_vocab_size = self.config_data["vocab_size"]
             parts[part_id] = len(parts)
-            self.config_data["vocab_size"] = current_vocab_size + 1
-
-            # Update parts offset if this is the first part
-            if len(parts) == 1:
-                colors_offset = self.config_data["offsets"]["colors"]
-                num_colors = len(self.config_data["vocabulary"]["colors"])
-                self.config_data["offsets"]["parts"] = colors_offset + num_colors
-
-            self._save_config()
+            self._recalculate_offsets()
             logger.debug(f"Added new part: {part_id} -> {parts[part_id]}")
 
         return parts[part_id]
@@ -198,17 +201,8 @@ class VocabularyManager:
         color_key = str(color)
 
         if color_key not in colors:
-            # Calculate the new index based on current vocab size
-            current_vocab_size = self.config_data["vocab_size"]
             colors[color_key] = len(colors)
-            self.config_data["vocab_size"] = current_vocab_size + 1
-
-            # Update parts offset since colors come before parts
-            colors_offset = self.config_data["offsets"]["colors"]
-            num_colors = len(colors)
-            self.config_data["offsets"]["parts"] = colors_offset + num_colors
-
-            self._save_config()
+            self._recalculate_offsets()
             logger.debug(f"Added new color: {color_key} -> {colors[color_key]}")
 
         return colors[color_key]

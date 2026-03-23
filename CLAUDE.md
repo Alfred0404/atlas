@@ -61,9 +61,9 @@ Token ranges are defined by offsets in `src/config.py`:
 **ATLASTransformer** (`src/model/transformer.py`): ~7M parameter decoder-only transformer.
 - Embeddings = token embedding + absolute position embedding + intra-brick field embedding (7 fields: SOS + 6 per brick)
 - 6 layers, 8 heads, 256-dim, 1024-dim FFN, pre-norm (`norm_first=True`)
-- Causal attention mask; **field-based logit masking** at inference constrains outputs to valid token ranges per field position
+- Causal attention mask; **field-based logit masking** during both training and inference constrains outputs to valid token ranges per field position
 
-**Trainer** (`src/model/train.py`): AdamW (lr=3e-4), linear warmup (500 steps) → cosine annealing, gradient clipping at 1.0.
+**Trainer** (`src/model/train.py`): AdamW (lr=3e-4), linear warmup (500 steps) → cosine annealing, gradient clipping at 1.0. Logit masking is enabled during training (`mask_logits=True`).
 
 **Generator** (`src/model/generate.py`): Temperature (0.8) + top-k (50) sampling with field-aware logit masking. Outputs .mpd files via `src/file_io/mpd_writer.py`.
 
@@ -77,6 +77,16 @@ Token ranges are defined by offsets in `src/config.py`:
 
 ## Known Issues / TODOs
 
-- Tokenizer and VocabularyManager re-read `atlas_config.json` on every brick; needs in-memory caching
 - No train/validation split or early stopping yet
 - Position ranges and precision are hardcoded constants in `src/config.py`
+- `Config.OFFSETS["parts"]` in `src/config.py` is hardcoded at 3128 but the real value is dynamic (depends on number of colors in vocabulary). Always use `vocab_manager.get_offsets()` at runtime, not the static constant.
+
+## Workflow
+
+- **Always update `TODO.md`** after any codebase modification: mark completed items as done with the date, add new TODOs discovered during implementation, and remove obsolete entries.
+
+## Past Mistakes — Do Not Repeat
+
+- **Token offset mismatch**: The `parts` offset in `atlas_config.json` is dynamic (shifts when colors are added). The `.npy` files are tokenized with a specific offset. If the vocabulary changes after tokenization, all `.npy` files become invalid and must be regenerated. Always build the complete vocabulary (all colors, then all parts) BEFORE tokenizing any file. This is why `DatasetBuilder.process_dataset()` uses a 2-pass pipeline.
+- **Logit masking must be enabled during training** (`mask_logits=True`): Without it, the model distributes probability across the entire vocabulary (~3500+ tokens) instead of just the valid tokens for each field. At generation time, the mask then collapses this broad distribution to a handful of tokens, resulting in always generating the same output regardless of temperature. Training with masking focuses learning on valid tokens per field.
+- **VocabularyManager.save() must be called explicitly**: `add_part()`/`add_color()` only modify in-memory state. If you need the JSON on disk (e.g., before `tokenizer.load_vocabulary()`), call `vocab_manager.save()` first.

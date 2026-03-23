@@ -3,22 +3,23 @@
 ## High Priority
 
 - [ ] Sort/classify sets by theme using Rebrickable API (map set numbers to themes, enable theme-filtered or theme-conditioned training)
-- [ ] 🔴 json i/o optimisation ([builder.py](src/data/builder.py), [vocabulary.py](src/core/vocabulary.py), [tokenizer.py](src/core/tokenizer.py))
-  - [ ] Tokenizer relit `atlas_config.json` à chaque brique/attribut — cacher le vocab en mémoire ou passer le VocabularyManager directement
-  - [ ] `add_part()` / `add_color()` sauvegardent le JSON à chaque ajout — batch les écritures et faire un seul `_save_config()` à la fin
 - [ ] 🔴 hardcoded magic numbers ([config.py](src/config.py))
 - [ ] Larger training dataset + train/val split with early stopping
+- [ ] Data augmentation (rotation globale 90°/180°/270°, mirroring, permutation d'ordre des briques)
+- [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)
 - [ ] 🟢 Check how other point transformers handle positions
 
 <details>
     <summary style="font-style:bold">Done</summary>
+
 - [x] update the readme by removing all the unnecessary methods listing
-- [x] implement logit masking during inference
+- [x] implement logit masking during inference and training (2026-03-23)
 - [x] scrap more files (OMR scraper implemented in [omr_scraper.py](src/file_io/omr_scraper.py))
 - [x] Add rotation matrix similarity mapping to map rotation to ids ([tokenizer.py](src/core/tokenizer.py), 2026-01-27)
 - [x] 🟡 Change the way of centering ([builder.py](src/data/builder.py))
 - [x] 🟡 add test coverage ([tests/](tests/))
 - [x] 🟢 tests files in prod environnment
+- [x] 🔴 json i/o optimisation — pipeline 2 passes: vocab collecté puis figé avant tokenisation, tokenizer cache le vocab en mémoire, `add_part()`/`add_color()` en mémoire + `save()` explicite (2026-03-23)
 </details>
 
 ## Encoder

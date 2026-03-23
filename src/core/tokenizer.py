@@ -25,7 +25,31 @@ class AtlasTokenizer:
     """
 
     def __init__(self):
+        self._vocabulary = None
+        self._offsets = None
+        self._reference_matrices = None
+        self._rotation_vocab = None
         logger.info("Initialized AtlasTokenizer.")
+
+    def load_vocabulary(self, config_path: str) -> None:
+        """Load and cache vocabulary from atlas_config.json. Must be called before tokenizing."""
+        with open(config_path, "r", encoding="utf-8") as f:
+            atlas_config = json.load(f)
+        self._vocabulary = atlas_config["vocabulary"]
+        self._offsets = atlas_config["offsets"]
+        self._rotation_vocab = atlas_config["vocabulary"]["rotations"]
+
+        # Pre-parse rotation matrices from string keys
+        self._reference_matrices = []
+        self._rotation_keys = []
+        for key, idx in sorted(self._rotation_vocab.items(), key=lambda x: x[1]):
+            values = [float(x) for x in key.strip("[]").split(",")]
+            self._reference_matrices.append(np.array(values).reshape(3, 3))
+            self._rotation_keys.append(key)
+
+        logger.info(f"Vocabulary cached: {len(self._vocabulary['parts'])} parts, "
+                     f"{len(self._vocabulary['colors'])} colors, "
+                     f"{len(self._reference_matrices)} rotations")
 
     def position_to_bin_id(self, position: float, axis: str) -> int:
         """Convert a real-valued position to its corresponding bin ID.
@@ -41,10 +65,10 @@ class AtlasTokenizer:
             logger.error("Config.PRECISION is zero, cannot perform division.")
             raise ValueError("Config.PRECISION cannot be zero.")
 
-        bin_id = (
-            int((position - Config.MIN_POSITION) / Config.PRECISION)
-            + Config.OFFSETS[f"positions_{axis}"]
-        )
+        offset = Config.OFFSETS[f"positions_{axis}"]
+        num_bins = (Config.MAX_POSITION - Config.MIN_POSITION) // Config.PRECISION
+        raw_bin = int((position - Config.MIN_POSITION) / Config.PRECISION)
+        bin_id = max(0, min(raw_bin, num_bins - 1)) + offset
 
         return bin_id
 
@@ -75,22 +99,14 @@ class AtlasTokenizer:
         returns:
             int: Corresponding token ID.
         """
+        if self._vocabulary is None:
+            raise RuntimeError("Vocabulary not loaded. Call load_vocabulary() first.")
 
-        if not Path(Config.ATLAS_CONFIG_PATH).is_file():
-            logger.error(f"Atlas config file not found: {Config.ATLAS_CONFIG_PATH}")
-            return -1
+        vocab_dict = self._vocabulary[vocab_key]
+        offset = self._offsets[offset_key]
+        unknown_token_id = self._vocabulary["special"]["UNK"]
 
-        with open(Config.ATLAS_CONFIG_PATH, "r") as f:
-            atlas_config = json.load(f)
-
-            offsets = atlas_config["offsets"]
-            vocabulary = atlas_config["vocabulary"]
-
-            vocab_dict: dict = vocabulary[vocab_key]
-            offset: int = offsets[offset_key]
-            unknown_token_id: int = vocabulary["special"]["UNK"]
-
-            token_id: int = vocab_dict.get(value, None)
+        token_id = vocab_dict.get(value, None)
 
         if token_id is None:
             logger.warning(
@@ -98,7 +114,7 @@ class AtlasTokenizer:
             )
             return unknown_token_id
 
-        final_token_id: int = token_id + offset
+        final_token_id = token_id + offset
         logger.debug(f"Value {value} maps to token ID {final_token_id}.")
 
         return final_token_id
@@ -134,41 +150,22 @@ class AtlasTokenizer:
     def rotation_matrix_to_token(self, rotation_matrix: np.ndarray) -> int:
         """Convert a rotation matrix to its closest chiral matrix token ID.
 
-        Looks up the rotation in atlas_config.json vocabulary to ensure
-        we use the actual stored index, avoiding index mismatches.
-
         Args:
             rotation_matrix (np.ndarray): Rotation matrix of shape (3, 3).
         Returns:
             int: Corresponding token ID.
         """
-        if not Path(Config.ATLAS_CONFIG_PATH).is_file():
-            logger.error(f"Atlas config file not found: {Config.ATLAS_CONFIG_PATH}")
-            return -1
+        if self._reference_matrices is None:
+            raise RuntimeError("Vocabulary not loaded. Call load_vocabulary() first.")
 
-        with open(Config.ATLAS_CONFIG_PATH, "r") as f:
-            atlas_config = json.load(f)
-            rotation_vocab = atlas_config["vocabulary"]["rotations"]
-            offset = atlas_config["offsets"]["rotations"]
+        offset = self._offsets["rotations"]
 
-        # Build reference matrices from the vocabulary (in the stored order)
-        reference_matrices = []
-        vocab_keys = []
-        for key, idx in sorted(rotation_vocab.items(), key=lambda x: x[1]):
-            # Parse the string key back to a matrix
-            values = [float(x) for x in key.strip("[]").split(",")]
-            matrix = np.array(values).reshape(3, 3)
-            reference_matrices.append(matrix)
-            vocab_keys.append(key)
-
-        # Find the closest rotation matrix
         closest_index = find_closest_rotation_matrix(
-            rotation_matrix, reference_matrices
+            rotation_matrix, self._reference_matrices
         )
 
-        # Look up the actual vocabulary index for this rotation
-        closest_key = vocab_keys[closest_index]
-        vocab_index = rotation_vocab[closest_key]
+        closest_key = self._rotation_keys[closest_index]
+        vocab_index = self._rotation_vocab[closest_key]
 
         token_id = vocab_index + offset
         logger.debug(

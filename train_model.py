@@ -24,7 +24,7 @@ def main():
     # Dataset
     dataset = SequenceDataset(
         npy_dir=Config.TOKENIZED_DATASET_DIR,
-        max_bricks=400,
+        max_bricks=200,
         max_files=100_000,
     )
     logger.info(f"Dataset size: {len(dataset)} sequences")

@@ -149,10 +149,12 @@ def test_id_mapping(dataset_builder: DatasetBuilder):
         ),
     ]
 
-    # Update vocabulary with test data
+    # Update vocabulary with test data and load into tokenizer
     brick_ids = dataset_builder.collect_brick_ids()
     colors = dataset_builder.collect_brick_colors()
     dataset_builder._update_vocabulary(brick_ids, colors)
+    dataset_builder.vocab_manager.save()
+    dataset_builder.tokenizer.load_vocabulary(dataset_builder.vocab_manager.config_path)
 
     # Test tokenization (which does the ID mapping)
     dataset_builder.tokenize_brick_data()
@@ -188,8 +190,8 @@ def test_config_file_structure(test_config_path: str, dataset_builder: DatasetBu
     """
 
     # Config file is already saved during initialization
-    # Add a part to trigger a save
     dataset_builder.vocab_manager.add_part("test.dat")
+    dataset_builder.vocab_manager.save()
 
     with open(test_config_path, "r") as f:
         config_data = json.load(f)
@@ -273,9 +275,28 @@ def test_process_single_file_resets_tensor_state(
 
     first_file = tmp_path / "first.mpd"
     second_file = tmp_path / "second.mpd"
+    files = [first_file, second_file]
 
-    assert dataset_builder._process_single_file(first_file)
-    assert dataset_builder._process_single_file(second_file)
+    # Pass 1: collect vocabulary
+    for f in files:
+        raw_data = dataset_builder._parse_and_transform(f)
+        if raw_data:
+            dataset_builder.all_brick_ids.update(b.brick_id for b in raw_data)
+            dataset_builder.all_colors.update(b.color for b in raw_data)
+
+    dataset_builder.vocab_manager.add_colors(dataset_builder.all_colors)
+    dataset_builder.vocab_manager.add_parts(dataset_builder.all_brick_ids)
+    dataset_builder.vocab_manager.save()
+    dataset_builder.tokenizer.load_vocabulary(test_config_path)
+
+    # Pass 2: tokenize and save
+    for f in files:
+        raw_data = dataset_builder._parse_and_transform(f)
+        if raw_data:
+            dataset_builder.raw_data = raw_data
+            dataset_builder.tokenize_brick_data()
+            dataset_builder._to_tensor()
+            dataset_builder.save_dataset(str(output_dir / f"{f.stem}.npy"))
 
     first_tensor = np.load(output_dir / "first.npy")
     second_tensor = np.load(output_dir / "second.npy")

@@ -128,21 +128,19 @@ def test_vocabulary_size(vocab_manager: VocabularyManager):
         vocab_manager (VocabularyManager): VocabularyManager instance.
     """
 
-    # Get initial size (should be Config.OFFSETS["parts"] which is 3028)
-    initial_size = vocab_manager.get_vocab_size()
-
-    # Add some parts and colors
-    vocab_manager.add_part("3001.dat")
-    vocab_manager.add_part("3002.dat")
+    # Add some colors first (colors must come before parts since they shift parts offset)
     vocab_manager.add_color(1)
     vocab_manager.add_color(4)
+    vocab_manager.add_part("3001.dat")
+    vocab_manager.add_part("3002.dat")
 
     vocab_size = vocab_manager.get_vocab_size()
     parts_count = vocab_manager.get_parts_count()
     colors_count = vocab_manager.get_colors_count()
+    offsets = vocab_manager.get_offsets()
 
-    # Vocab size increases by the number of parts + colors added
-    expected_size = initial_size + parts_count + colors_count
+    # vocab_size = colors_offset + num_colors + num_parts
+    expected_size = offsets["colors"] + colors_count + parts_count
 
     assert parts_count == 2, "Should have 2 parts"
     assert colors_count == 2, "Should have 2 colors"

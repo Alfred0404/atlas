@@ -59,107 +59,80 @@ class DatasetBuilder:
         """
         Process all MPD files in the raw dataset directory.
 
-        Iterates through all .mpd files, parses them, transforms the data,
-        and updates the vocabulary with encountered parts and colors.
+        Two-pass pipeline:
+        1. Parse all files and collect vocabulary (parts + colors).
+        2. Tokenize all files with the frozen vocabulary.
 
         Args:
             max_files: Maximum number of files to process. If None, process all files.
         """
         logger.info("Starting dataset processing...\n")
 
-        all_files = [
-            f
-            for f in Path(Config.RAW_DATASET_DIR).glob("*.mpd")
-            if not (Path(Config.TOKENIZED_DATASET_DIR) / f.stem)
-            .with_suffix(".npy")
-            .exists()
-        ]
+        all_files = list(Path(Config.RAW_DATASET_DIR).glob("*.mpd"))
 
         if not all_files:
             logger.error(f"No MPD files found in directory: {Config.RAW_DATASET_DIR}")
             return
 
-        # Limit number of files if specified
         if max_files is not None:
             all_files = all_files[:max_files]
             logger.info(f"Processing limited to {len(all_files)} files.\n")
 
-        for mpd_file in tqdm(all_files, desc="Processing MPD files", unit="file"):
-            if not self._process_single_file(mpd_file):
-                logger.warning(f"Skipping file due to processing error: {mpd_file}\n")
+        # --- Pass 1: collect vocabulary ---
+        logger.info("Pass 1: Collecting vocabulary...")
+        for mpd_file in tqdm(all_files, desc="Scanning vocabulary", unit="file"):
+            raw_data = self._parse_and_transform(mpd_file)
+            if raw_data is None:
                 continue
+            self.all_brick_ids.update(brick.brick_id for brick in raw_data)
+            self.all_colors.update(brick.color for brick in raw_data)
 
-        logger.info("Dataset processing complete.\n")
-        logger.info("Vocabulary summary:\n")
+        # Build complete vocabulary (colors first, then parts) and save once
+        self.vocab_manager.add_colors(self.all_colors)
+        self.vocab_manager.add_parts(self.all_brick_ids)
+        self.vocab_manager.save()
+
+        logger.info("Vocabulary summary:")
         logger.info(f"Total unique parts: {self.vocab_manager.get_parts_count()}")
         logger.info(f"Total unique colors: {self.vocab_manager.get_colors_count()}")
         logger.info(f"Total vocabulary size: {self.vocab_manager.get_vocab_size()}")
 
-        if self.tokenized_data:
-            logger.info(f"final processed sample: {self.tokenized_data[0]}")
+        # Load frozen vocabulary into tokenizer
+        self.tokenizer.load_vocabulary(Config.ATLAS_CONFIG_PATH)
 
-    def _process_single_file(self, mpd_file_path: str) -> bool:
-        """
-        Process a single MPD file through the complete pipeline.
+        # --- Pass 2: tokenize and save ---
+        logger.info("Pass 2: Tokenizing dataset...")
+        for mpd_file in tqdm(all_files, desc="Tokenizing", unit="file"):
+            output_path = Path(Config.TOKENIZED_DATASET_DIR) / f"{mpd_file.stem}.npy"
+            raw_data = self._parse_and_transform(mpd_file)
+            if raw_data is None:
+                continue
+            self.raw_data = raw_data
+            self.tokenize_brick_data()
+            self._to_tensor()
+            self.save_dataset(str(output_path))
 
-        Parses the MPD file, extracts and transforms brick data, collects vocabulary,
-        tokenizes attributes, converts to tensor format, and saves the processed dataset.
+        logger.info("Dataset processing complete.\n")
 
-        Args:
-            mpd_file_path: Path to the MPD file to process.
-
-        Returns:
-            bool: True if processing succeeded, False if file should be skipped.
-        """
-        # Reset per-file state so each saved dataset contains only the current model.
-        self.raw_data = []
-        self.tokenized_data = []
-        self.final_tensor = None
-
+    def _parse_and_transform(self, mpd_file_path) -> Optional[List[RawBrickData]]:
+        """Parse an MPD file and return transformed raw brick data, or None on failure."""
         parser = MPDParser(str(mpd_file_path))
 
-        logger.info(f"Processing {mpd_file_path} with {len(self.raw_data)} bricks.")
-        logger.debug(f"submodels: {parser._submodels}")
-
         if not parser._submodels:
-            logger.warning(f"No submodels found in {mpd_file_path}. Skipping file.")
-            return False
+            logger.warning(f"No submodels found in {mpd_file_path}. Skipping.")
+            return None
 
         first_submodel_key = list(parser._submodels.keys())[0]
-
         self.raw_data = parser.flatten(first_submodel_key, np.eye(4))
 
         if not self.raw_data:
-            logger.warning(
-                f"No raw data extracted from {mpd_file_path}. Skipping file."
-            )
-            return False
+            logger.warning(f"No raw data extracted from {mpd_file_path}. Skipping.")
+            return None
 
         self.raw_data = parser.sort_bricks_by_position()
-
-        # Transform data
         self.center_around_origin()
 
-        # Collect and update vocabulary
-        new_brick_ids = self.collect_brick_ids()
-        new_colors = self.collect_brick_colors()
-
-        self.all_brick_ids.update(new_brick_ids)
-        self.all_colors.update(new_colors)
-
-        # Update vocabulary incrementally
-        self._update_vocabulary(new_brick_ids, new_colors)
-
-        # Tokenize all brick attributes (positions, IDs, colors)
-        self.tokenize_brick_data()
-
-        self._to_tensor()
-
-        self.save_dataset(
-            str(Path(Config.TOKENIZED_DATASET_DIR) / f"{mpd_file_path.stem}.npy")
-        )
-
-        return True
+        return self.raw_data
 
     def center_around_origin(self) -> None:
         """
@@ -314,30 +287,15 @@ class DatasetBuilder:
         Creates a tensor by concatenating brick attributes (brick index, position,
         rotation index, and color index) for each brick.
         """
-
-        for brick in self.tokenized_data:
-            # create the tensor for each brick by unpacking its attributes
-            # [brick_idx, x, y, z, rotation_idx, color_idx]
-            brick_tensor = np.concatenate(
-                (
-                    [brick.brick_idx],
-                    brick.position,
-                    [brick.rotation_idx],
-                    [brick.color_idx],
-                )
-            )
-
-            if self.final_tensor is None:
-                self.final_tensor = brick_tensor[np.newaxis, :]
-            else:
-                self.final_tensor = np.vstack(
-                    (self.final_tensor, brick_tensor[np.newaxis, :])
-                )
+        # [brick_idx, x, y, z, rotation_idx, color_idx]
+        rows = [
+            np.concatenate(([b.brick_idx], b.position, [b.rotation_idx], [b.color_idx]))
+            for b in self.tokenized_data
+        ]
+        self.final_tensor = np.array(rows)
 
         logger.debug(f"Final tensor shape: {self.final_tensor.shape}")
-        logger.debug(
-            f"Final tensor data: {self.final_tensor[0:5, :]}"
-        )  # log first 5 entries
+        logger.debug(f"Final tensor data: {self.final_tensor[0:5, :]}")
 
     def save_dataset(self, output_path: str) -> None:
         """
