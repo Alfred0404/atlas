@@ -10,7 +10,6 @@ if __name__ == "__main__":
     src_path = Path(__file__).parent.parent
     sys.path.insert(0, str(src_path))
 
-from .adjacency import sort_bricks_by_adjacency
 from .augmentation import AugmentationConfig, generate_augmented_variants
 from .parser import MPDParser, RawBrickData
 from ..core.vocabulary import VocabularyManager
@@ -79,6 +78,18 @@ class DatasetBuilder:
             return set()
         return set(path.read_text().strip().splitlines())
 
+    @staticmethod
+    def _sort_bricks_by_position(bricks: List[RawBrickData]) -> List[RawBrickData]:
+        """Deterministic brick ordering: bottom-to-top, then X, then Z."""
+        return sorted(
+            bricks,
+            key=lambda brick: (
+                -brick.world_matrix[1, 3],
+                brick.world_matrix[0, 3],
+                brick.world_matrix[2, 3],
+            ),
+        )
+
     def process_dataset(self, max_files: Optional[int] = None) -> None:
         """
         Process all MPD files in the raw dataset directory.
@@ -102,9 +113,15 @@ class DatasetBuilder:
         blacklist = self._load_blacklist()
         if blacklist:
             before = len(all_files)
-            all_files = [f for f in all_files if self._extract_set_number(f.name) not in blacklist]
+            all_files = [
+                f
+                for f in all_files
+                if self._extract_set_number(f.name) not in blacklist
+            ]
             skipped = before - len(all_files)
-            logger.info(f"Blacklist: skipped {skipped} files ({len(blacklist)} set numbers loaded)")
+            logger.info(
+                f"Blacklist: skipped {skipped} files ({len(blacklist)} set numbers loaded)"
+            )
 
         if max_files is not None:
             all_files = all_files[:max_files]
@@ -136,9 +153,7 @@ class DatasetBuilder:
 
         # --- Pass 2: tokenize and save (using cached parse results) ---
         logger.info("Pass 2: Tokenizing dataset...")
-        rng = np.random.default_rng(
-            self.aug_config.seed if self.aug_config else 42
-        )
+        rng = np.random.default_rng(self.aug_config.seed if self.aug_config else 42)
 
         for mpd_file in tqdm(parsed_cache, desc="Tokenizing", unit="file"):
             raw_data = parsed_cache[mpd_file]
@@ -150,31 +165,25 @@ class DatasetBuilder:
                 variants = [("", raw_data)]
 
             for suffix, variant_bricks in variants:
-                # Identity: already sorted and centered from pass 1.
-                # Geometric variants (rot/mirror): distances between bricks
-                # are invariant under isometries, so BFS order is the same.
-                # The bricks are already in the right order — just re-center.
-                # Permutation variants (_pN): need randomized BFS for a
-                # different ordering.
+                # Use positional ordering as canonical sequence syntax.
+                # Permutations keep data augmentation diversity via seeded shuffle.
                 is_permutation = "_p" in suffix
+                ordered_bricks = self._sort_bricks_by_position(variant_bricks)
 
                 if is_permutation:
-                    self.raw_data = sort_bricks_by_adjacency(
-                        variant_bricks, rng=rng
-                    )
+                    self.raw_data = list(ordered_bricks)
+                    rng.shuffle(self.raw_data)
                     self.center_around_origin()
                 elif suffix == "":
-                    self.raw_data = variant_bricks
+                    self.raw_data = ordered_bricks
                 else:
-                    # Geometric variant: skip re-sort, just re-center
-                    self.raw_data = variant_bricks
+                    self.raw_data = ordered_bricks
                     self.center_around_origin()
 
                 self.tokenize_brick_data()
                 self._to_tensor()
                 output_path = (
-                    Path(Config.TOKENIZED_DATASET_DIR)
-                    / f"{mpd_file.stem}{suffix}.npy"
+                    Path(Config.TOKENIZED_DATASET_DIR) / f"{mpd_file.stem}{suffix}.npy"
                 )
                 self.save_dataset(str(output_path))
 
@@ -195,7 +204,8 @@ class DatasetBuilder:
             logger.warning(f"No raw data extracted from {mpd_file_path}. Skipping.")
             return None
 
-        self.raw_data = sort_bricks_by_adjacency(self.raw_data)
+        parser.sort_bricks_by_position()
+        self.raw_data = parser.raw_data
         self.center_around_origin()
 
         return self.raw_data
@@ -328,9 +338,9 @@ class DatasetBuilder:
         )
 
         # Assemble (N, 6) tensor: [brick_idx, x, y, z, rotation_idx, color_idx]
-        self.final_tensor = np.column_stack([
-            brick_tokens, pos_tokens, rot_tokens, color_tokens
-        ])
+        self.final_tensor = np.column_stack(
+            [brick_tokens, pos_tokens, rot_tokens, color_tokens]
+        )
 
         # Backward compat: populate tokenized_data for tests
         self.tokenized_data = [
