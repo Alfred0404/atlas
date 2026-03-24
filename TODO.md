@@ -2,6 +2,7 @@
 
 ## High Priority
 
+- [ ] Switch back to position sorting, because proximity sorting with bfs does not reflect well the relation bettween bricks, and the model always generate the same brick positions.
 - [x] Blacklist Technic/Bionicle/Hero Factory sets from dataset — `dataset/technic_blacklist.txt` + filtering in `builder.py` (2026-03-24)
 - [ ] Sort/classify sets by theme using Rebrickable API (map set numbers to themes, enable theme-filtered or theme-conditioned training)
 - [x] 🔴 hardcoded magic numbers — offsets now computed from constants ([config.py](src/config.py), 2026-03-23)
