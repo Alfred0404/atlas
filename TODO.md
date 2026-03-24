@@ -2,10 +2,11 @@
 
 ## High Priority
 
+- [x] Blacklist Technic/Bionicle/Hero Factory sets from dataset — `dataset/technic_blacklist.txt` + filtering in `builder.py` (2026-03-24)
 - [ ] Sort/classify sets by theme using Rebrickable API (map set numbers to themes, enable theme-filtered or theme-conditioned training)
-- [ ] 🔴 hardcoded magic numbers ([config.py](src/config.py))
+- [x] 🔴 hardcoded magic numbers — offsets now computed from constants ([config.py](src/config.py), 2026-03-23)
 - [ ] Larger training dataset + train/val split with early stopping
-- [ ] Data augmentation (rotation globale 90°/180°/270°, mirroring, permutation d'ordre des briques)
+- [x] Data augmentation (rotation globale 90°/180°/270°, mirroring X, permutation d'ordre BFS) — `src/data/augmentation.py`, 8x multiplicateur géométrique (2026-03-24)
 - [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)
 - [ ] 🟢 Check how other point transformers handle positions
 

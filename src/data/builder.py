@@ -1,3 +1,4 @@
+import re
 import sys
 from pathlib import Path
 from typing import NamedTuple, List, Set, Optional
@@ -9,6 +10,8 @@ if __name__ == "__main__":
     src_path = Path(__file__).parent.parent
     sys.path.insert(0, str(src_path))
 
+from .adjacency import sort_bricks_by_adjacency
+from .augmentation import AugmentationConfig, generate_augmented_variants
 from .parser import MPDParser, RawBrickData
 from ..core.vocabulary import VocabularyManager
 from ..core.tokenizer import AtlasTokenizer
@@ -38,15 +41,21 @@ class DatasetBuilder:
     tensor data, managing vocabulary through VocabularyManager, and the tokenization process through AtlasTokenizer.
     """
 
-    def __init__(self, atlas_config_path: str):
+    def __init__(
+        self,
+        atlas_config_path: str,
+        augmentation_config: AugmentationConfig = None,
+    ):
         """
         Initialize the DatasetBuilder.
 
         Args:
             atlas_config_path: Path to the atlas_config.json file.
+            augmentation_config: Optional augmentation config. None disables augmentation.
         """
         self.vocab_manager = VocabularyManager(atlas_config_path)
         self.tokenizer = AtlasTokenizer()
+        self.aug_config = augmentation_config
         self.all_brick_ids: Set[str] = set()
         self.all_colors: Set[int] = set()
 
@@ -54,6 +63,20 @@ class DatasetBuilder:
         self.raw_data: List[RawBrickData] = []
         self.tokenized_data: List[TokenizedBrickData] = []
         self.final_tensor = None
+
+    @staticmethod
+    def _extract_set_number(filename: str) -> str:
+        """Extract the leading numeric set number from a filename."""
+        match = re.match(r"^(\d+)", filename)
+        return match.group(1) if match else ""
+
+    @staticmethod
+    def _load_blacklist() -> Set[str]:
+        """Load set numbers to exclude from the blacklist file."""
+        path = Path(Config.TECHNIC_BLACKLIST_PATH)
+        if not path.exists():
+            return set()
+        return set(path.read_text().strip().splitlines())
 
     def process_dataset(self, max_files: Optional[int] = None) -> None:
         """
@@ -74,16 +97,26 @@ class DatasetBuilder:
             logger.error(f"No MPD files found in directory: {Config.RAW_DATASET_DIR}")
             return
 
+        # Filter out blacklisted sets (Technic, Bionicle, Hero Factory)
+        blacklist = self._load_blacklist()
+        if blacklist:
+            before = len(all_files)
+            all_files = [f for f in all_files if self._extract_set_number(f.name) not in blacklist]
+            skipped = before - len(all_files)
+            logger.info(f"Blacklist: skipped {skipped} files ({len(blacklist)} set numbers loaded)")
+
         if max_files is not None:
             all_files = all_files[:max_files]
             logger.info(f"Processing limited to {len(all_files)} files.\n")
 
-        # --- Pass 1: collect vocabulary ---
+        # --- Pass 1: collect vocabulary and cache parsed data ---
         logger.info("Pass 1: Collecting vocabulary...")
+        parsed_cache: dict[Path, List[RawBrickData]] = {}
         for mpd_file in tqdm(all_files, desc="Scanning vocabulary", unit="file"):
             raw_data = self._parse_and_transform(mpd_file)
             if raw_data is None:
                 continue
+            parsed_cache[mpd_file] = raw_data
             self.all_brick_ids.update(brick.brick_id for brick in raw_data)
             self.all_colors.update(brick.color for brick in raw_data)
 
@@ -100,17 +133,49 @@ class DatasetBuilder:
         # Load frozen vocabulary into tokenizer
         self.tokenizer.load_vocabulary(Config.ATLAS_CONFIG_PATH)
 
-        # --- Pass 2: tokenize and save ---
+        # --- Pass 2: tokenize and save (using cached parse results) ---
         logger.info("Pass 2: Tokenizing dataset...")
-        for mpd_file in tqdm(all_files, desc="Tokenizing", unit="file"):
-            output_path = Path(Config.TOKENIZED_DATASET_DIR) / f"{mpd_file.stem}.npy"
-            raw_data = self._parse_and_transform(mpd_file)
-            if raw_data is None:
-                continue
-            self.raw_data = raw_data
-            self.tokenize_brick_data()
-            self._to_tensor()
-            self.save_dataset(str(output_path))
+        rng = np.random.default_rng(
+            self.aug_config.seed if self.aug_config else 42
+        )
+
+        for mpd_file in tqdm(parsed_cache, desc="Tokenizing", unit="file"):
+            raw_data = parsed_cache[mpd_file]
+
+            # Generate augmented variants (or just original if no config)
+            if self.aug_config:
+                variants = generate_augmented_variants(raw_data, self.aug_config)
+            else:
+                variants = [("", raw_data)]
+
+            for suffix, variant_bricks in variants:
+                # Identity: already sorted and centered from pass 1.
+                # Geometric variants (rot/mirror): distances between bricks
+                # are invariant under isometries, so BFS order is the same.
+                # The bricks are already in the right order — just re-center.
+                # Permutation variants (_pN): need randomized BFS for a
+                # different ordering.
+                is_permutation = "_p" in suffix
+
+                if is_permutation:
+                    self.raw_data = sort_bricks_by_adjacency(
+                        variant_bricks, rng=rng
+                    )
+                    self.center_around_origin()
+                elif suffix == "":
+                    self.raw_data = variant_bricks
+                else:
+                    # Geometric variant: skip re-sort, just re-center
+                    self.raw_data = variant_bricks
+                    self.center_around_origin()
+
+                self.tokenize_brick_data()
+                self._to_tensor()
+                output_path = (
+                    Path(Config.TOKENIZED_DATASET_DIR)
+                    / f"{mpd_file.stem}{suffix}.npy"
+                )
+                self.save_dataset(str(output_path))
 
         logger.info("Dataset processing complete.\n")
 
@@ -129,7 +194,7 @@ class DatasetBuilder:
             logger.warning(f"No raw data extracted from {mpd_file_path}. Skipping.")
             return None
 
-        self.raw_data = parser.sort_bricks_by_position()
+        self.raw_data = sort_bricks_by_adjacency(self.raw_data)
         self.center_around_origin()
 
         return self.raw_data

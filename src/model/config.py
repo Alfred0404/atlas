@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Dict
 
+from ..config import Config
+
 
 @dataclass
 class ModelConfig:
@@ -30,12 +32,4 @@ class ModelConfig:
     top_k: int = 50
 
     # Token range offsets (from Config.OFFSETS) — used for logit masking
-    offsets: Dict[str, int] = field(default_factory=lambda: {
-        "special": 0,
-        "rotations": 4,
-        "positions_x": 28,
-        "positions_y": 1028,
-        "positions_z": 2028,
-        "colors": 3028,
-        "parts": 3128,
-    })
+    offsets: Dict[str, int] = field(default_factory=lambda: dict(Config.OFFSETS))

@@ -33,7 +33,8 @@ class ATLASTransformer(nn.Module):
         )
 
         self.output_norm = nn.LayerNorm(config.d_model)
-        self.output_head = nn.Linear(config.d_model, config.vocab_size)
+        self.output_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+        self.output_head.weight = self.token_embedding.weight
 
         # Pre-build the logit mask template (registered as buffer so it moves with .to())
         self._register_logit_mask(config)

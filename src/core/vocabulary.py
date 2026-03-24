@@ -78,7 +78,12 @@ class VocabularyManager:
         # maybe move this dict to a constant in config.py
         self.config_data = {
             "version": "1.0",
-            "spatial": {"l_min": -1000, "l_max": 1000, "step": 2, "num_bins": 1000},
+            "spatial": {
+                "l_min": Config.MIN_POSITION,
+                "l_max": Config.MAX_POSITION,
+                "step": Config.PRECISION,
+                "num_bins": Config.NUM_BINS_PER_AXIS,
+            },
             "offsets": {
                 "special": Config.OFFSETS["special"],  # 4 special tokens
                 "rotations": Config.OFFSETS["rotations"],  # 24 rotations

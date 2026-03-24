@@ -13,6 +13,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.data.builder import DatasetBuilder
+from src.data.augmentation import AugmentationConfig
 from src.config import Config
 
 
@@ -22,7 +23,13 @@ def main():
     print("Starting ATLAS Dataset Builder")
     print("=" * 60)
 
-    dataset_builder = DatasetBuilder(Config.ATLAS_CONFIG_PATH)
+    aug_config = AugmentationConfig(
+        enable_rotations=True,
+        enable_mirror=True,
+        num_permutations=1,
+        seed=42,
+    )
+    dataset_builder = DatasetBuilder(Config.ATLAS_CONFIG_PATH, aug_config)
 
     dataset_builder.process_dataset()
 
