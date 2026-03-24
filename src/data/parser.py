@@ -60,9 +60,7 @@ class MPDParser:
                 lines.append(line)
 
                 if line.startswith("0 FILE"):
-                    # New submodel key
                     current_file = line.split(maxsplit=2)[2]
-                    logger.debug(f"Registering submodel: {current_file}")
                     self._submodels[current_file] = []
 
                 elif line.startswith("1 ") and current_file is not None:
@@ -84,8 +82,6 @@ class MPDParser:
 
         if submodel_lines is None:
             return
-
-        logger.debug(f"Flattening model: {model_name} with {len(submodel_lines)} lines")
 
         for line in submodel_lines:
             if line.startswith("1 "):
@@ -114,7 +110,6 @@ class MPDParser:
                 # if submodel, recursively flatten it
                 if line.endswith(".ldr\n"):
                     submodel_name = line.split(maxsplit=14)[-1]
-                    logger.debug(f"Found submodel: {submodel_name}")
                     self.flatten(submodel_name, world_matrix)
 
                 # if brick, extract its data and store it
@@ -188,8 +183,6 @@ def line_to_vector(line: str) -> np.ndarray:
     line_vec = [field for field in line.split(maxsplit=13)]
     # get only the brick id (last element) without the .dat extension : "32324.dat" -> "32324" or "2412b.dat" -> "2412b"
     brick_id = line_vec[-1].split(".")[0]
-    # convert numeric values to float
-    logger.debug(f"Parsing line for brick ID: {brick_id}")
     numeric_values = np.array([float(val) for val in line_vec[:-1]])
 
     return numeric_values, brick_id

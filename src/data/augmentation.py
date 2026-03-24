@@ -10,6 +10,9 @@ from typing import List, Tuple
 import numpy as np
 
 from .parser import RawBrickData
+from ..utils.logging import setup_logging
+
+logger = setup_logging()
 
 # --- Y-axis rotation matrices (3x3) ---
 # LDraw Y points down, but Y-axis rotations only affect X and Z.
@@ -103,6 +106,7 @@ def generate_augmented_variants(
 
     # Add permutation variants
     if config.num_permutations <= 1:
+        logger.debug(f"Augmentation: {len(geometric_variants)} variants (geometric only)")
         return geometric_variants
 
     all_variants = []
@@ -113,4 +117,5 @@ def generate_augmented_variants(
         for p in range(2, config.num_permutations + 1):
             all_variants.append((f"{geo_suffix}_p{p}", geo_bricks))
 
+    logger.debug(f"Augmentation: {len(all_variants)} variants ({len(geometric_variants)} geometric x {config.num_permutations} permutations)")
     return all_variants

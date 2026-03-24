@@ -35,6 +35,28 @@ def get_rotation_matrix_from_world_matrix(
     return rotation_matrix
 
 
+def batch_get_rotation_matrices(world_matrices: np.ndarray) -> np.ndarray:
+    """Extract rotation matrices from a batch of world matrices using SVD.
+
+    Args:
+        world_matrices: Array of shape (N, 4, 4).
+    Returns:
+        Array of shape (N, 3, 3) with pure rotation matrices.
+    """
+    transforms = world_matrices[:, :3, :3]
+    U, _, Vt = np.linalg.svd(transforms)
+    rotations = U @ Vt
+
+    # Fix reflections (det < 0) by flipping last column of U
+    dets = np.linalg.det(rotations)
+    mask = dets < 0
+    if np.any(mask):
+        U[mask, :, -1] *= -1
+        rotations[mask] = U[mask] @ Vt[mask]
+
+    return rotations
+
+
 def get_position_from_world_matrix(
     world_matrix: np.ndarray,
 ) -> np.ndarray:

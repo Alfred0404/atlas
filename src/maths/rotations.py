@@ -40,9 +40,7 @@ def generate_chiral_rotation_matrices() -> list[np.ndarray]:
     # sort for consistency in the vocabulary
     unique_matrices.sort(key=lambda x: tuple(x.flatten()))
 
-    logger.info(f"Nombre de rotations uniques détectées : {len(unique_matrices)}")
-    for i, mat in enumerate(unique_matrices):
-        logger.info(f"ID {i:02d} | Matrix:\n{mat}")
+    logger.debug(f"Generated {len(unique_matrices)} unique rotation matrices")
 
     return unique_matrices
 
@@ -57,27 +55,11 @@ def find_closest_rotation_matrix(
     Returns:
         int: Index of the closest rotation matrix in the reference list.
     """
-
     reference_matrices = np.array(reference_matrices)
     differences = reference_matrices - input_matrix
-    logger.debug(f"Input matrix shape: {input_matrix.shape}")
-    logger.debug(f"Reference matrices shape: {reference_matrices.shape}")
-    logger.debug(f"Differences shape: {differences.shape}")
+    distances = np.sum(np.square(differences), axis=(1, 2))
 
-    squared_differences = np.square(differences)
-    logger.debug(f"Squared differences shape: {squared_differences.shape}")
-
-    distances = np.sum(
-        squared_differences, axis=(1, 2)
-    )  # square by element (not mat * mat)
-    logger.debug(f"Frobenius norm distances shape: {distances.shape}")
-    logger.debug(f"Distance values: {distances}")
-
-    min_index = int(np.argmin(distances))
-    min_distance = np.min(distances)
-    logger.debug(f"Closest rotation: index={min_index}, distance={min_distance:.6f}")
-
-    return min_index
+    return int(np.argmin(distances))
 
 
 if __name__ == "__main__":

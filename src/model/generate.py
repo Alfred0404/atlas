@@ -2,6 +2,9 @@ import torch
 import torch.nn.functional as F
 
 from .config import ModelConfig
+from ..utils.logging import setup_logging
+
+logger = setup_logging()
 
 
 class Generator:
@@ -33,6 +36,7 @@ class Generator:
         EOS = 2
         max_len = max_bricks * self.config.brick_fields + 2  # +SOS +EOS
 
+        logger.info(f"Generating sequence (max_bricks={max_bricks}, temp={temperature}, top_k={top_k})")
         tokens = torch.tensor([[SOS]], dtype=torch.long, device=self.device)
 
         for _ in range(max_len - 1):
@@ -59,7 +63,11 @@ class Generator:
             if next_token.item() == EOS:
                 break
 
-        return tokens.squeeze(0)  # (seq_len,)
+        seq = tokens.squeeze(0)
+        n_tokens = seq.shape[0] - 1  # exclude SOS
+        hit_eos = seq[-1].item() == EOS
+        logger.info(f"Generated {n_tokens} tokens (EOS={'yes' if hit_eos else 'no'})")
+        return seq
 
     def decode_sequence(self, tokens: torch.Tensor) -> list[dict]:
         """Decode a token sequence into a list of brick dictionaries.

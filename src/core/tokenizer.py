@@ -59,10 +59,7 @@ class AtlasTokenizer:
         Returns:
             int: Corresponding bin ID.
         """
-        logger.debug(f"Converting position {position} on axis {axis} to bin ID.")
-
         if Config.PRECISION == 0:
-            logger.error("Config.PRECISION is zero, cannot perform division.")
             raise ValueError("Config.PRECISION cannot be zero.")
 
         offset = Config.OFFSETS[f"positions_{axis}"]
@@ -80,8 +77,6 @@ class AtlasTokenizer:
         Returns:
             float: Corresponding real-valued position.
         """
-        logger.debug(f"Converting bin ID {bin_id} on axis {axis} back to position.")
-
         position = (
             bin_id - Config.OFFSETS[f"positions_{axis}"]
         ) * Config.PRECISION + Config.MIN_POSITION
@@ -109,70 +104,120 @@ class AtlasTokenizer:
         token_id = vocab_dict.get(value, None)
 
         if token_id is None:
-            logger.warning(
-                f"Value {value} not found in vocabulary for key {vocab_key}."
-            )
+            logger.warning(f"Unknown {vocab_key[:-1]}: {value}")
             return unknown_token_id
 
-        final_token_id = token_id + offset
-        logger.debug(f"Value {value} maps to token ID {final_token_id}.")
-
-        return final_token_id
+        return token_id + offset
 
     def brick_id_to_token(self, brick_id: str) -> int:
-        """Convert a brick ID to its corresponding token ID.
-        Args:
-            brick_id (str): Brick ID.
-        Returns:
-            int: Corresponding token ID.
-        """
-        logger.debug(f"Converting brick ID {brick_id} to token ID.")
-        token_id = self._get_token_from_vocabulary(
+        """Convert a brick ID to its corresponding token ID."""
+        return self._get_token_from_vocabulary(
             value=brick_id, vocab_key="parts", offset_key="parts"
         )
 
-        return token_id
-
     def color_id_to_token(self, color_id: str) -> int:
-        """Convert a color ID to its corresponding token ID.
-        Args:
-            color_id (str): Color ID.
-        Returns:
-            int: Corresponding token ID.
-        """
-        logger.debug(f"Converting color ID {color_id} to token ID.")
-        token_id = self._get_token_from_vocabulary(
+        """Convert a color ID to its corresponding token ID."""
+        return self._get_token_from_vocabulary(
             value=color_id, vocab_key="colors", offset_key="colors"
         )
 
-        return token_id
-
     def rotation_matrix_to_token(self, rotation_matrix: np.ndarray) -> int:
-        """Convert a rotation matrix to its closest chiral matrix token ID.
+        """Convert a rotation matrix to its closest chiral matrix token ID."""
+        if self._reference_matrices is None:
+            raise RuntimeError("Vocabulary not loaded. Call load_vocabulary() first.")
+
+        offset = self._offsets["rotations"]
+        closest_index = find_closest_rotation_matrix(
+            rotation_matrix, self._reference_matrices
+        )
+        vocab_index = self._rotation_vocab[self._rotation_keys[closest_index]]
+
+        return vocab_index + offset
+
+    # --- Batch methods for vectorized tokenization ---
+
+    def batch_positions_to_bin_ids(self, positions: np.ndarray) -> np.ndarray:
+        """Convert an (N, 3) array of positions to bin IDs for x, y, z.
 
         Args:
-            rotation_matrix (np.ndarray): Rotation matrix of shape (3, 3).
+            positions: Array of shape (N, 3) with [x, y, z] per row.
         Returns:
-            int: Corresponding token ID.
+            Array of shape (N, 3) with bin IDs including offsets.
+        """
+        offsets = np.array([
+            Config.OFFSETS["positions_x"],
+            Config.OFFSETS["positions_y"],
+            Config.OFFSETS["positions_z"],
+        ])
+        num_bins = Config.NUM_BINS_PER_AXIS
+        raw_bins = ((positions - Config.MIN_POSITION) / Config.PRECISION).astype(int)
+        clamped = np.clip(raw_bins, 0, num_bins - 1)
+        return clamped + offsets
+
+    def batch_rotation_matrices_to_tokens(self, matrices: np.ndarray) -> np.ndarray:
+        """Convert (N, 3, 3) rotation matrices to token IDs.
+
+        Args:
+            matrices: Array of shape (N, 3, 3).
+        Returns:
+            Array of shape (N,) with rotation token IDs.
         """
         if self._reference_matrices is None:
             raise RuntimeError("Vocabulary not loaded. Call load_vocabulary() first.")
 
         offset = self._offsets["rotations"]
+        refs = np.array(self._reference_matrices)  # (24, 3, 3)
 
-        closest_index = find_closest_rotation_matrix(
-            rotation_matrix, self._reference_matrices
-        )
+        # Compute Frobenius distances: (N, 24)
+        # matrices[:, None] is (N, 1, 3, 3), refs[None] is (1, 24, 3, 3)
+        diffs = matrices[:, None, :, :] - refs[None, :, :, :]
+        distances = np.sum(diffs ** 2, axis=(2, 3))
+        closest_indices = np.argmin(distances, axis=1)
 
-        closest_key = self._rotation_keys[closest_index]
-        vocab_index = self._rotation_vocab[closest_key]
+        # Map indices to token IDs via vocabulary
+        vocab_indices = np.array([
+            self._rotation_vocab[self._rotation_keys[i]]
+            for i in closest_indices
+        ])
+        return vocab_indices + offset
 
-        token_id = vocab_index + offset
-        logger.debug(
-            f"Rotation matrix maps to vocab index {vocab_index}, token ID: {token_id}"
-        )
+    def batch_brick_ids_to_tokens(self, brick_ids: list) -> np.ndarray:
+        """Convert a list of brick IDs to token IDs.
 
-        return token_id
+        Args:
+            brick_ids: List of N brick ID strings.
+        Returns:
+            Array of shape (N,) with part token IDs.
+        """
+        if self._vocabulary is None:
+            raise RuntimeError("Vocabulary not loaded. Call load_vocabulary() first.")
+
+        parts_vocab = self._vocabulary["parts"]
+        offset = self._offsets["parts"]
+        unk = self._vocabulary["special"]["UNK"]
+        return np.array([
+            parts_vocab.get(bid, None) + offset if parts_vocab.get(bid) is not None else unk
+            for bid in brick_ids
+        ])
+
+    def batch_color_ids_to_tokens(self, color_ids: list) -> np.ndarray:
+        """Convert a list of color IDs to token IDs.
+
+        Args:
+            color_ids: List of N color ID strings.
+        Returns:
+            Array of shape (N,) with color token IDs.
+        """
+        if self._vocabulary is None:
+            raise RuntimeError("Vocabulary not loaded. Call load_vocabulary() first.")
+
+        colors_vocab = self._vocabulary["colors"]
+        offset = self._offsets["colors"]
+        unk = self._vocabulary["special"]["UNK"]
+        return np.array([
+            colors_vocab.get(cid, None) + offset if colors_vocab.get(cid) is not None else unk
+            for cid in color_ids
+        ])
 
 
 if __name__ == "__main__":

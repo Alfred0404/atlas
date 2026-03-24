@@ -135,7 +135,7 @@ class VocabularyManager:
         """Save the current configuration to the JSON file."""
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(self.config_data, f, indent=2)
-        logger.debug(f"Configuration saved to {self.config_path}")
+        logger.info(f"Configuration saved to {self.config_path}")
 
     def save(self) -> None:
         """Explicitly save the current configuration to disk."""
@@ -163,7 +163,6 @@ class VocabularyManager:
         if part_id not in parts:
             parts[part_id] = len(parts)
             self._recalculate_offsets()
-            logger.debug(f"Added new part: {part_id} -> {parts[part_id]}")
 
         return parts[part_id]
 
@@ -208,7 +207,6 @@ class VocabularyManager:
         if color_key not in colors:
             colors[color_key] = len(colors)
             self._recalculate_offsets()
-            logger.debug(f"Added new color: {color_key} -> {colors[color_key]}")
 
         return colors[color_key]
 

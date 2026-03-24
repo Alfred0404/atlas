@@ -18,18 +18,18 @@ class ModelConfig:
 
     # Training
     batch_size: int = 8
-    learning_rate: float = 1e-3
+    learning_rate: float = 3e-4
     weight_decay: float = 0.01
     max_epochs: int = 100
     grad_clip_norm: float = 1.0
-    warmup_steps: int = 50
+    warmup_steps: int = 350
     checkpoint_dir: str = "./checkpoints"
-    log_interval: int = 1
+    log_interval: int = 10
 
     # Generation
-    max_gen_bricks: int = 100
-    temperature: float = 5.0
-    top_k: int = 50
+    max_gen_bricks: int = 200
+    temperature: float = 0.8
+    top_k: int = 0
 
     # Token range offsets (from Config.OFFSETS) — used for logit masking
     offsets: Dict[str, int] = field(default_factory=lambda: dict(Config.OFFSETS))

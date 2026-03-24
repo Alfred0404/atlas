@@ -16,6 +16,7 @@ from .parser import MPDParser, RawBrickData
 from ..core.vocabulary import VocabularyManager
 from ..core.tokenizer import AtlasTokenizer
 from ..maths.transforms import (
+    batch_get_rotation_matrices,
     get_position_from_world_matrix,
     get_rotation_matrix_from_world_matrix,
 )
@@ -237,8 +238,6 @@ class DatasetBuilder:
             ]
         )
 
-        logger.debug(f"Applying grid-snapped centering. Offset: {snapped_offset}")
-
         # 5. Mise à jour des matrices mondiales
         for brick in self.raw_data:
             brick.world_matrix[:3, 3] -= snapped_offset
@@ -299,68 +298,57 @@ class DatasetBuilder:
 
     def tokenize_brick_data(self) -> None:
         """
-        Tokenize all brick attributes in one pass.
+        Tokenize all brick attributes using vectorized batch operations.
 
-        Converts raw brick data to processed brick data by:
-        - Tokenizing positions to discrete bins
-        - Mapping brick IDs to vocabulary indices
-        - Mapping colors to vocabulary indices
-        - Extracting rotation matrices
+        Extracts positions and rotations from world matrices in batch,
+        then tokenizes everything via numpy array ops. Produces both
+        self.tokenized_data (for backward compat) and self.final_tensor.
         """
         if not self.raw_data:
             logger.warning("No raw data to tokenize.")
             return
 
-        self.tokenized_data = []  # Clear previous data
+        n = len(self.raw_data)
 
-        for brick in self.raw_data:
-            # Extract position and rotation from world matrix
-            position = get_position_from_world_matrix(brick.world_matrix)
-            rotation_matrix = get_rotation_matrix_from_world_matrix(brick.world_matrix)
+        # Stack all world matrices into (N, 4, 4)
+        world_matrices = np.array([b.world_matrix for b in self.raw_data])
 
-            # Tokenize position coordinates to bin IDs
-            tokenized_x = self.tokenizer.position_to_bin_id(position[0], "x")
-            tokenized_y = self.tokenizer.position_to_bin_id(position[1], "y")
-            tokenized_z = self.tokenizer.position_to_bin_id(position[2], "z")
-            tokenized_position = np.array([tokenized_x, tokenized_y, tokenized_z])
+        # Batch extract positions (N, 3) and rotation matrices (N, 3, 3)
+        positions = world_matrices[:, :3, 3]
+        rotation_matrices = batch_get_rotation_matrices(world_matrices)
 
-            # Map brick ID and color to vocabulary indices
-            brick_idx = self.tokenizer.brick_id_to_token(brick.brick_id)
-            color_idx = self.tokenizer.color_id_to_token(str(brick.color))
-
-            # Tokenize rotation matrix to vocabulary index
-            rotation_idx = self.tokenizer.rotation_matrix_to_token(rotation_matrix)
-
-            # Create processed brick data with all tokenized attributes
-            self.tokenized_data.append(
-                TokenizedBrickData(
-                    brick_idx=brick_idx,
-                    position=tokenized_position,
-                    rotation_idx=rotation_idx,
-                    color_idx=color_idx,
-                )
-            )
-
-        logger.info(
-            f"Tokenized {len(self.tokenized_data)} bricks (positions, IDs, and colors)"
+        # Batch tokenize
+        pos_tokens = self.tokenizer.batch_positions_to_bin_ids(positions)
+        rot_tokens = self.tokenizer.batch_rotation_matrices_to_tokens(rotation_matrices)
+        brick_tokens = self.tokenizer.batch_brick_ids_to_tokens(
+            [b.brick_id for b in self.raw_data]
+        )
+        color_tokens = self.tokenizer.batch_color_ids_to_tokens(
+            [str(b.color) for b in self.raw_data]
         )
 
-    def _to_tensor(self) -> None:
-        """
-        Convert TokenizedBrickData to a numpy tensor.
+        # Assemble (N, 6) tensor: [brick_idx, x, y, z, rotation_idx, color_idx]
+        self.final_tensor = np.column_stack([
+            brick_tokens, pos_tokens, rot_tokens, color_tokens
+        ])
 
-        Creates a tensor by concatenating brick attributes (brick index, position,
-        rotation index, and color index) for each brick.
-        """
-        # [brick_idx, x, y, z, rotation_idx, color_idx]
-        rows = [
-            np.concatenate(([b.brick_idx], b.position, [b.rotation_idx], [b.color_idx]))
-            for b in self.tokenized_data
+        # Backward compat: populate tokenized_data for tests
+        self.tokenized_data = [
+            TokenizedBrickData(
+                brick_idx=int(brick_tokens[i]),
+                position=pos_tokens[i],
+                rotation_idx=int(rot_tokens[i]),
+                color_idx=int(color_tokens[i]),
+            )
+            for i in range(n)
         ]
-        self.final_tensor = np.array(rows)
 
+        logger.info(f"Tokenized {n} bricks (vectorized)")
         logger.debug(f"Final tensor shape: {self.final_tensor.shape}")
-        logger.debug(f"Final tensor data: {self.final_tensor[0:5, :]}")
+
+    def _to_tensor(self) -> None:
+        """No-op: tensor is now built directly in tokenize_brick_data()."""
+        pass
 
     def save_dataset(self, output_path: str) -> None:
         """

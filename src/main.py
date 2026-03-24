@@ -15,13 +15,16 @@ sys.path.insert(0, str(project_root))
 from src.data.builder import DatasetBuilder
 from src.data.augmentation import AugmentationConfig
 from src.config import Config
+from src.utils.logging import setup_logging
+
+logger = setup_logging()
 
 
 def main():
     """Run the dataset builder to process MPD files."""
-    print("=" * 60)
-    print("Starting ATLAS Dataset Builder")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("Starting ATLAS Dataset Builder")
+    logger.info("=" * 60)
 
     aug_config = AugmentationConfig(
         enable_rotations=True,
@@ -33,9 +36,9 @@ def main():
 
     dataset_builder.process_dataset()
 
-    print("=" * 60)
-    print("Dataset processing complete!")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("Dataset processing complete!")
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":

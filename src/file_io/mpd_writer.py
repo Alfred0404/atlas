@@ -36,6 +36,8 @@ def write_mpd_file(
         logger.error(f"Output directory does not exist: {Path(output_path).parent}")
         return
 
+    logger.info(f"Writing {len(raw_data)} bricks to {output_path}")
+
     with open(output_path, "w") as file:
         # Write header
         file.write(f"0 FILE {model_name}.ldr\n")
