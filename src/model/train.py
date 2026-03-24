@@ -64,10 +64,35 @@ class Trainer:
 
         os.makedirs(config.checkpoint_dir, exist_ok=True)
 
+    def _resume_if_checkpoint_exists(self) -> int:
+        """Try to load the latest checkpoint. Returns the epoch to resume from (0 if none)."""
+        path = os.path.join(self.config.checkpoint_dir, "atlas_transformer.pt")
+        if not os.path.exists(path):
+            return 0
+
+        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        self.global_step = checkpoint["global_step"]
+
+        epoch = checkpoint["epoch"]
+        loss = checkpoint.get("loss", "?")
+        logger.info(
+            f"Resumed from checkpoint: {path} (epoch {epoch}, "
+            f"step {self.global_step}, loss {loss})"
+        )
+        return epoch
+
     def train(self) -> None:
         self.start_time = time.time()
+        start_epoch = self._resume_if_checkpoint_exists()
 
-        for epoch in range(1, self.config.max_epochs + 1):
+        if start_epoch >= self.config.max_epochs:
+            logger.info("Training already complete — nothing to do.")
+            return
+
+        for epoch in range(start_epoch + 1, self.config.max_epochs + 1):
             train_loss = self._train_one_epoch(epoch)
             self.history["epoch_train_loss"].append(train_loss)
             logger.info(
