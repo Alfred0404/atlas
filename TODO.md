@@ -6,7 +6,6 @@
 - [ ] Sort/classify sets by theme using Rebrickable API (map set numbers to themes, enable theme-filtered or theme-conditioned training)
 - [ ] Larger training dataset + train/val split with early stopping
 - [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)
-- [ ] Check how other point transformers handle positions
 
 <details>
     <summary style="font-style:bold">Done</summary>

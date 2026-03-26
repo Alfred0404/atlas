@@ -9,7 +9,7 @@
   <h3 align="center">ATLAS</h3>
 
   <p align="center">
-    Autoregressive Transformer Lego Assembly Synthesis — un transformer GPT-style qui apprend à générer des modèles LEGO.
+    Autoregressive Transformer Lego Assembly Synthesis
     <br />
     <a href="https://github.com/Alfred0404/atlas"><strong>Parcourir le repo »</strong></a>
   </p>
@@ -26,9 +26,9 @@
 ATLAS implémente un pipeline ML complet : parsing de fichiers LDraw `.mpd`, tokenisation de briques en séquences, entraînement d'un transformer decoder-only, et génération de nouveaux modèles LEGO. Chaque brique est encodée en une séquence fixe de 6 tokens `[part, x, y, z, rotation, couleur]`, et le modèle apprend à prédire la prochaine brique de manière autorégressif.
 
 <p align="center">
-    <img src="public/first_generation.png" alt="Première génération du modèle ATLAS" style="border-radius:5px" width="500">
+    <img src="public/generation_example.png" alt="Exemple de génération du modèle ATLAS actuel" style="border-radius:5px" width="500">
     <br />
-    <em>Première génération du modèle ATLAS</em>
+    <em>Exemple de génération du modèle ATLAS actuel</em>
 </p>
 
 ## Getting Started
@@ -121,9 +121,9 @@ ATLAS/
 
 **Ranges de tokens** :
 
-- **Spéciaux** : `PAD=0, SOS=1, EOS=2, UNK=3` — indices 0–3
-- **Rotations** : 24 orientations orthogonales — indices 4–27
-- **Positions** : 1000 bins par axe (précision 2 LDU, range ±1000) — indices 28–3027
+- **Spéciaux** : `PAD=0, SOS=1, EOS=2, UNK=3` $\Rightarrow$ indices 0 $\rightarrow$ 3
+- **Rotations** : 24 orientations orthogonales $\Rightarrow$ indices 4 $\rightarrow$ 27
+- **Positions** : 1000 bins par axe (précision 2 LDU, range ±1000) $\Rightarrow$ indices 28 $\rightarrow$ 3027
 - **Couleurs** : à partir de 3028
 - **Parts** : offset dynamique après les couleurs
 
@@ -164,11 +164,11 @@ Le pipeline complet fonctionne de bout en bout : parsing, tokenisation, entraîn
 
 #### ⚠️ Qualité de génération à améliorer
 
-Les modèles générés ne sont pas encore réalistes — le modèle a tendance à répéter les mêmes positions et ne génère pas de token EOS.
+Les modèles générés ne sont pas encore réalistes — le modèle a tendance à répéter les mêmes positions.
 
 **Causes probables identifiées :**
 
-1. Modèle sous-entraîné (besoin de plus d'époques)
+1. Modèle sous-entraîné
 2. Pas de split train/val ni d'early stopping
 3. Hyperparamètres à affiner (température, learning rate)
 
