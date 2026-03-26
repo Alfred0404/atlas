@@ -10,6 +10,7 @@ logger = setup_logging()
 class Generator:
 
     def __init__(self, model, config: ModelConfig, device: str = "cuda"):
+        """Initialize the generator with a trained model and move it to the target device."""
         self.model = model.to(device)
         self.config = config
         self.device = device

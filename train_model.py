@@ -11,6 +11,7 @@ logger = setup_logging()
 
 
 def main():
+    """Load vocabulary and dataset, build the model and launch training."""
     # Device
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"Using device: {device}")

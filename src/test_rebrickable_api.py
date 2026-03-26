@@ -37,6 +37,7 @@ def get_theme_name(theme_id: int) -> str:
 
 
 def main():
+    """Fetch and display the theme name for a sample LEGO set via Rebrickable."""
     set_id = 8121
     theme_id = get_set_theme_id(set_id)
     theme_name = get_theme_name(theme_id)

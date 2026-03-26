@@ -22,6 +22,7 @@ def token_to_ldu(token, axis_offset):
 
 
 def main():
+    """Compute and print position distribution statistics from the tokenized dataset."""
     npy_dir = Config.TOKENIZED_DATASET_DIR
     files = [f for f in os.listdir(npy_dir) if f.endswith(".npy")]
     print(f"Found {len(files)} tokenized files\n")

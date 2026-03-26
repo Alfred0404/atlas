@@ -65,6 +65,7 @@ def tokens_to_raw_bricks(bricks: list[dict], vocab_manager: VocabularyManager) -
 
 
 def main():
+    """Load a trained checkpoint, generate a LEGO model and export it as an MPD file."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"Using device: {device}")
 

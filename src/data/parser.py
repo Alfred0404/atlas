@@ -32,6 +32,7 @@ class MPDParser:
     """
 
     def __init__(self, mpd_file_path: str):
+        """Initialize the parser, read the file and build the submodel registry."""
         self.mpd_file_path = mpd_file_path
         self._submodels: dict[str, list[str]] = {}  # registry of submodels
         self.lines: list[str] = self.read_lego_set_file()  # lines of the mpd file

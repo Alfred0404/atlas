@@ -25,6 +25,7 @@ class AtlasTokenizer:
     """
 
     def __init__(self):
+        """Initialize the tokenizer with empty vocabulary state."""
         self._vocabulary = None
         self._offsets = None
         self._reference_matrices = None

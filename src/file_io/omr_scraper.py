@@ -110,6 +110,7 @@ def download_file(url: str, save_path: str) -> bool:
 
 
 def main():
+    """Scrape the LDraw OMR and download all missing .mpd files."""
     download_dir = Config.RAW_DATASET_DIR
     os.makedirs(download_dir, exist_ok=True)
 

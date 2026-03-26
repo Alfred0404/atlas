@@ -13,7 +13,7 @@
 - [x] Data augmentation (rotation globale 90°/180°/270°, mirroring X, permutation seedée) — `src/data/augmentation.py`, 8x multiplicateur géométrique (2026-03-24)
 - [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)
 - [ ] 🟢 Check how other point transformers handle positions
-- [ ] Ajouter des docstrings à toutes les fonctions du projet
+- [x] Ajouter des docstrings à toutes les fonctions du projet (2026-03-26)
 
 <details>
     <summary style="font-style:bold">Done</summary>

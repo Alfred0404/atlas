@@ -7,6 +7,7 @@ from .config import ModelConfig
 class ATLASTransformer(nn.Module):
 
     def __init__(self, config: ModelConfig):
+        """Initialize the ATLAS transformer with embeddings, decoder layers and output head."""
         super().__init__()
         self.config = config
 

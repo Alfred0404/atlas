@@ -41,6 +41,7 @@ class SequenceDataset(Dataset):
         ][: self.max_files]
 
     def __len__(self):
+        """Return the number of sequences in the dataset."""
         return len(self.npy_files)
 
     def __getitem__(self, index: int) -> torch.Tensor:

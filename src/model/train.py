@@ -22,6 +22,7 @@ class Trainer:
         val_loader: DataLoader = None,
         device: str = "cuda",
     ):
+        """Initialize the trainer with model, data loaders, optimizer and LR scheduler."""
         self.model = model.to(device)
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -90,6 +91,7 @@ class Trainer:
         return epoch
 
     def train(self) -> None:
+        """Run the full training loop, resuming from checkpoint if available."""
         self.start_time = time.time()
         start_epoch = self._resume_if_checkpoint_exists()
 
@@ -119,6 +121,7 @@ class Trainer:
         self._plot_curves()
 
     def _train_one_epoch(self, epoch: int) -> float:
+        """Train for one epoch and return the average loss."""
         self.model.train()
         total_loss = 0.0
         num_batches = 0
@@ -156,6 +159,7 @@ class Trainer:
 
     @torch.no_grad()
     def _validate(self) -> float:
+        """Evaluate on the validation set and return the average loss."""
         self.model.eval()
         total_loss = 0.0
         num_batches = 0
@@ -172,6 +176,7 @@ class Trainer:
         return total_loss / max(1, num_batches)
 
     def _save_checkpoint(self, epoch: int, loss: float, is_best: bool = False) -> None:
+        """Save model, optimizer and scheduler state to a checkpoint file."""
         checkpoint = {
             "epoch": epoch,
             "model_state_dict": self.model.state_dict(),
@@ -258,6 +263,7 @@ class Trainer:
     def load_checkpoint(
         path: str, model: nn.Module, device: str = "cuda"
     ) -> dict:
+        """Load a checkpoint from disk and restore the model weights."""
         checkpoint = torch.load(path, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint["model_state_dict"])
         logger.info(f"Loaded checkpoint from {path} (epoch {checkpoint['epoch']})")
