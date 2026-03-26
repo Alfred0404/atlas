@@ -92,3 +92,143 @@ Token ranges are defined by offsets in `src/config.py`:
 - **VocabularyManager.save() must be called explicitly**: `add_part()`/`add_color()` only modify in-memory state. If you need the JSON on disk (e.g., before `tokenizer.load_vocabulary()`), call `vocab_manager.save()` first.
 
 when a task is complete, check it in the todo.md, and if it wasnt in the todo list, add it and check it
+
+---
+
+Voici le rapport complet de simplification du projet ATLAS, agrégé à partir des 3 analyses.
+                                                                                                     ---
+  Rapport de Simplification — Projet ATLAS
+  Priorité Haute                                                                                                                                                                                        #: 1                                                                                               Catégorie: Performance                                                                             Problème: Pas de KV-cache en génération — le modèle re-calcule l'attention sur toute la séquence   à                                                                                                     chaque token (O(n²) au lieu de O(n))                                                            Fichiers: src/model/generate.py:49                                                                 ────────────────────────────────────────                                                           #: 2
+  Catégorie: Performance
+  Problème: Le masque causal est recalculé à chaque forward() au lieu d'être pré-calculé comme
+    buffer
+  Fichiers: src/model/transformer.py:96
+  ────────────────────────────────────────
+  #: 3
+  Catégorie: Performance
+  Problème: SequenceDataset.__getitem__ fait un np.load() depuis le disque à chaque accès — pas de
+    cache mémoire
+  Fichiers: src/data/sequence_dataset.py:47
+  ────────────────────────────────────────
+  #: 4
+  Catégorie: Duplication
+  Problème: 3 implémentations de "trouver la rotation la plus proche" — rotations.py, vocabulary.py
+
+    et tokenizer.py
+  Fichiers: src/maths/rotations.py, src/core/vocabulary.py:254, src/core/tokenizer.py:125
+  ────────────────────────────────────────
+  #: 5
+  Catégorie: Abstraction
+  Problème: DatasetBuilder accède au membre privé parser._submodels
+  Fichiers: src/data/builder.py:196,200
+  ────────────────────────────────────────
+  #: 6
+  Catégorie: Abstraction
+  Problème: train_model.py modifie directement dataset.npy_files (encapsulation cassée)
+  Fichiers: train_model.py:52
+  ────────────────────────────────────────
+  #: 7
+  Catégorie: Bug
+  Problème: mpd_writer.py a un sys.path.insert qui s'exécute inconditionnellement + un bloc
+  __main__
+    cassé (appelle des méthodes inexistantes)
+  Fichiers: src/file_io/mpd_writer.py:14,77
+
+  Priorité Moyenne
+
+  ┌─────┬─────────────┬───────────────────────────────────────┬────────────────────────────────┐
+  │  #  │  Catégorie  │               Problème                │            Fichiers            │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │ 8   │ Duplication │ download_file() dupliqué entre        │ src/file_io/scraper.py:24,     │
+  │     │             │ scraper.py et omr_scraper.py          │ src/file_io/omr_scraper.py:97  │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ sort_bricks_by_position() dupliqué    │ src/data/parser.py:157,        │
+  │ 9   │ Duplication │ entre MPDParser et DatasetBuilder     │ src/data/builder.py:82         │
+  │     │             │ (même clé de tri)                     │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ Extraction de numéro de set par regex │ src/data/builder.py:69,        │
+  │ 10  │ Duplication │  dupliquée (_extract_set_number vs    │ src/file_io/omr_scraper.py:35  │
+  │     │             │ get_existing_set_numbers)             │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ SOS=1, EOS=2, PAD=0, UNK=3 utilisés   │ sequence_dataset.py:62,        │
+  │ 11  │ Magic       │ en dur partout au lieu de constantes  │ generate.py:36,                │
+  │     │ numbers     │ centralisées                          │ transformer.py:57,             │
+  │     │             │                                       │ vocabulary.py:240              │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ _recalculate_offsets() appelé à       │                                │
+  │ 12  │ Performance │ chaque add_part()/add_color()         │ src/core/vocabulary.py:164     │
+  │     │             │ individuel — N recalculs inutiles en  │                                │
+  │     │             │ boucle                                │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ line_to_vector() re-parse une ligne   │                                │
+  │ 13  │ Performance │ déjà parsée par flatten() — double    │ src/data/parser.py:118         │
+  │     │             │ split + numpy inutile                 │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │ 14  │ Performance │ Double normalisation des positions    │ src/data/adjacency.py:83-85    │
+  │     │             │ dans sort_bricks_by_adjacency         │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ generate_chiral_rotation_matrices()   │                                │
+  │ 15  │ Performance │ régénère les 24 matrices à chaque     │ src/core/vocabulary.py:267     │
+  │     │             │ appel au lieu de les cacher           │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ Double dict.get() dans                │                                │
+  │ 16  │ Performance │ batch_brick_ids_to_tokens /           │ src/core/tokenizer.py:199      │
+  │     │             │ batch_color_ids_to_tokens             │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │ 17  │ Dead code   │ _to_tensor() est un no-op mais        │ src/data/builder.py:362        │
+  │     │             │ toujours appelé                       │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ collect_brick_ids(),                  │                                │
+  │ 18  │ Dead code   │ collect_brick_colors(),               │ src/data/builder.py:255-308    │
+  │     │             │ _update_vocabulary() jamais appelés   │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ generate_model.py recharge le         │                                │
+  │ 19  │ Dead code   │ checkpoint manuellement au lieu       │ generate_model.py:78-84        │
+  │     │             │ d'utiliser Trainer.load_checkpoint()  │                                │
+  └─────┴─────────────┴───────────────────────────────────────┴────────────────────────────────┘
+
+  Priorité Basse
+
+  ┌─────┬─────────────┬───────────────────────────────────────┬────────────────────────────────┐
+  │  #  │  Catégorie  │               Problème                │            Fichiers            │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │ 20  │ Performance │ optimizer.zero_grad() sans            │ src/model/train.py:136         │
+  │     │             │ set_to_none=True                      │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │ 21  │ Performance │ Smoothing O(n²) pour les courbes de   │ src/model/train.py:230         │
+  │     │             │ loss                                  │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ self.lines stocke toutes les lignes   │                                │
+  │ 22  │ Performance │ du fichier MPD mais n'est jamais      │ src/data/parser.py:38          │
+  │     │             │ utilisé                               │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │ 23  │ Qualité     │ Commentaires step-by-step en français │ src/data/builder.py:224-251    │
+  │     │             │  dans center_around_origin()          │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │ 24  │ Dead code   │ Variable module-level mpd_file_path   │ src/data/parser.py:16,144      │
+  │     │             │ et code commenté dans parser.py       │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │ 25  │ Dead code   │ Branche if submodel_lines is None     │ src/data/parser.py:83          │
+  │     │             │ inatteignable (.get() retourne [])    │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ ModelConfig mélange config            │                                │
+  │ 26  │ Design      │ architecture, training et génération  │ src/model/config.py            │
+  │     │             │ dans un seul dataclass plat           │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ batch_brick_ids_to_tokens et          │                                │
+  │ 27  │ Duplication │ batch_color_ids_to_tokens             │ src/core/tokenizer.py:185-221  │
+  │     │             │ quasi-identiques — factorisable       │                                │
+  ├─────┼─────────────┼───────────────────────────────────────┼────────────────────────────────┤
+  │     │             │ Pattern device = "cuda" if            │ train_model.py:16,             │
+  │ 28  │ Duplication │ torch.cuda.is_available() else "cpu"  │ generate_model.py:69           │
+  │     │             │ dupliqué                              │                                │
+  └─────┴─────────────┴───────────────────────────────────────┴────────────────────────────────┘
+
+  ---
+  Top 3 des gains estimés
+
+  1. KV-cache en génération (#1) — 10-50x plus rapide pour la génération
+  2. Préchargement dataset en RAM (#3) — 2-10x plus rapide par epoch
+  3. Cache du masque causal (#2) — 5-15% sur le training
+
+  Tu veux que je corrige certains de ces points ?
