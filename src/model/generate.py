@@ -39,9 +39,24 @@ class Generator:
         logger.info(f"Generating sequence (max_bricks={max_bricks}, temp={temperature}, top_k={top_k})")
         tokens = torch.tensor([[SOS]], dtype=torch.long, device=self.device)
 
+        # Collision tracking
+        # Field order: [part_id, x, z, y, rotation, color]
+        used_positions = set()  # {(x_tok, z_tok, y_tok), ...}
+        current_brick_tokens = []
+        collision_penalty = self.config.collision_penalty
+
         for _ in range(max_len - 1):
             logits = self.model(tokens, mask_logits=True)  # (1, S, V)
             next_logits = logits[0, -1]  # (V,)
+
+            # Collision penalty on y field (vertical, generated last)
+            field_index = (tokens.shape[1] - 1) % self.config.brick_fields
+            if field_index == 3 and len(current_brick_tokens) >= 2:
+                current_x = current_brick_tokens[-2]  # x token
+                current_z = current_brick_tokens[-1]  # z token
+                for px, pz, py in used_positions:
+                    if px == current_x and pz == current_z:
+                        next_logits[py] -= collision_penalty
 
             # Temperature
             if temperature != 1.0:
@@ -62,6 +77,13 @@ class Generator:
 
             if next_token.item() == EOS:
                 break
+
+            # Track brick fields for collision detection
+            current_brick_tokens.append(next_token.item())
+            if len(current_brick_tokens) == self.config.brick_fields:
+                x, z, y = current_brick_tokens[1], current_brick_tokens[2], current_brick_tokens[3]
+                used_positions.add((x, z, y))
+                current_brick_tokens = []
 
         seq = tokens.squeeze(0)
         n_tokens = seq.shape[0] - 1  # exclude SOS
@@ -86,7 +108,7 @@ class Generator:
         if tokens and tokens[-1] == 2:
             tokens = tokens[:-1]
 
-        fields = ["part_id", "x", "y", "z", "rotation", "color"]
+        fields = ["part_id", "x", "z", "y", "rotation", "color"]
         bricks = []
 
         for i in range(0, len(tokens) - len(fields) + 1, len(fields)):

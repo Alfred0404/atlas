@@ -6,6 +6,9 @@
 - [x] Blacklist Technic/Bionicle/Hero Factory sets from dataset — `dataset/technic_blacklist.txt` + filtering in `builder.py` (2026-03-24)
 - [ ] Sort/classify sets by theme using Rebrickable API (map set numbers to themes, enable theme-filtered or theme-conditioned training)
 - [x] 🔴 hardcoded magic numbers — offsets now computed from constants ([config.py](src/config.py), 2026-03-23)
+- [x] Augmenter le poids du token EOS dans la loss (le modèle n'apprend pas à s'arrêter)
+- [x] Pénalité de collision dans la loss (briques générées aux mêmes positions)
+- [ ] Analyser la distribution des positions dans le dataset tokenisé (confirmer le biais vers le centre)
 - [ ] Larger training dataset + train/val split with early stopping
 - [x] Data augmentation (rotation globale 90°/180°/270°, mirroring X, permutation seedée) — `src/data/augmentation.py`, 8x multiplicateur géométrique (2026-03-24)
 - [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)

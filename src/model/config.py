@@ -19,6 +19,7 @@ class ModelConfig:
     # Training
     batch_size: int = 8
     learning_rate: float = 3e-4
+    eos_weight: float = 3.0
     weight_decay: float = 0.01
     max_epochs: int = 100
     grad_clip_norm: float = 1.0
@@ -27,9 +28,10 @@ class ModelConfig:
     log_interval: int = 10
 
     # Generation
-    max_gen_bricks: int = 200
+    max_gen_bricks: int = 400
     temperature: float = 0.8
     top_k: int = 0
+    collision_penalty: float = 10.0
 
     # Token range offsets (from Config.OFFSETS) — used for logit masking
     offsets: Dict[str, int] = field(default_factory=lambda: dict(Config.OFFSETS))

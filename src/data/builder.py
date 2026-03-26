@@ -337,9 +337,12 @@ class DatasetBuilder:
             [str(b.color) for b in self.raw_data]
         )
 
-        # Assemble (N, 6) tensor: [brick_idx, x, y, z, rotation_idx, color_idx]
+        # Assemble (N, 6) tensor: [brick_idx, x, z, y, rotation_idx, color_idx]
+        # Y (vertical) is last position field so the model chooses height
+        # after knowing the full horizontal position (x, z).
+        pos_xzy = pos_tokens[:, [0, 2, 1]]  # reorder [x,y,z] → [x,z,y]
         self.final_tensor = np.column_stack(
-            [brick_tokens, pos_tokens, rot_tokens, color_tokens]
+            [brick_tokens, pos_xzy, rot_tokens, color_tokens]
         )
 
         # Backward compat: populate tokenized_data for tests

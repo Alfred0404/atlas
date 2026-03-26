@@ -84,7 +84,7 @@ def main():
 
     # Generate
     generator = Generator(model, config, device=device)
-    tokens = generator.generate(max_bricks=100, temperature=0.8, top_k=50)
+    tokens = generator.generate(max_bricks=400, temperature=0.8, top_k=50)
     bricks = generator.decode_sequence(tokens)
     logger.info(f"Generated {len(bricks)} bricks")
 

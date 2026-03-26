@@ -46,7 +46,9 @@ class ATLASTransformer(nn.Module):
         S = config.max_seq_len
 
         # For each field index (0-5), define the allowed token range
-        # Field 0 = part_id, 1 = x, 2 = y, 3 = z, 4 = rotation, 5 = color
+        # Field 0 = part_id, 1 = x, 2 = z, 3 = y, 4 = rotation, 5 = color
+        # Y (vertical) is generated last among positions so the model
+        # picks height after knowing the full horizontal position (x, z).
         field_masks = torch.zeros(6, V, dtype=torch.bool)
 
         # part_id: [parts_offset, vocab_size) + EOS (2)
@@ -56,11 +58,11 @@ class ATLASTransformer(nn.Module):
         # x_bin: [positions_x, positions_y)
         field_masks[1, offsets["positions_x"]:offsets["positions_y"]] = True
 
-        # y_bin: [positions_y, positions_z)
-        field_masks[2, offsets["positions_y"]:offsets["positions_z"]] = True
-
         # z_bin: [positions_z, colors)
-        field_masks[3, offsets["positions_z"]:offsets["colors"]] = True
+        field_masks[2, offsets["positions_z"]:offsets["colors"]] = True
+
+        # y_bin: [positions_y, positions_z)
+        field_masks[3, offsets["positions_y"]:offsets["positions_z"]] = True
 
         # rotation: [rotations, positions_x)
         field_masks[4, offsets["rotations"]:offsets["positions_x"]] = True

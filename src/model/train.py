@@ -28,7 +28,12 @@ class Trainer:
         self.config = config
         self.device = device
 
-        self.criterion = nn.CrossEntropyLoss(ignore_index=0)
+        # Surpondérer le token EOS pour que le modèle apprenne à terminer
+        class_weights = torch.ones(config.vocab_size)
+        class_weights[2] = config.eos_weight  # EOS token index
+        self.criterion = nn.CrossEntropyLoss(
+            weight=class_weights.to(device), ignore_index=0
+        )
         self.optimizer = torch.optim.AdamW(
             model.parameters(),
             lr=config.learning_rate,
