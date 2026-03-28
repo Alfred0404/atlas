@@ -7,6 +7,9 @@
 - [ ] Larger training dataset + train/val split with early stopping
 - [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)
 
+[.conn files documentation](https://forums.ldraw.org/thread-28521-post-59984.html#pid59984)
+[.col files documentation](https://forums.ldraw.org/thread-28518.html)
+
 <details>
     <summary style="font-style:bold">Done</summary>
 
@@ -56,6 +59,20 @@
 - [x] Training loop with AdamW + cosine LR ([train.py](src/model/train.py), 2026-03-22)
 - [x] Generation pipeline with temperature + top-k sampling ([generate.py](src/model/generate.py), 2026-03-22)
 - [x] MPD export from generated tokens ([generate_model.py](generate_model.py), 2026-03-22)
+- [x] Test collision/connectivity via `.conn` with generated 2-brick stacked `.mpd` ([test_conn_collision_stack.py](test_conn_collision_stack.py), 2026-03-27)
+</details>
+
+## Graph Transformer / LegoCore
+
+- [ ] Implement SAT (Separating Axis Theorem) for precise OBB-OBB collision detection
+- [ ] Build MPD-to-graph preprocessing pipeline (LegoCore.from_raw_bricks -> .npz)
+- [ ] Design Graph Transformer model architecture
+
+<details>
+    <summary style="font-style:bold">Done</summary>
+- [x] LegoCore geometric engine — Port, ConnParser, ColParser, LegoPart, PartDatabase, SpatialHash, snap checking, LegoCore with graph construction ([src/geometry/](src/geometry/), 2026-03-28)
+- [x] Fix ConnParser to use actual part bottom Y from .dat geometry instead of stud4.dat reference position — bricks (height 24) now connect correctly, not just plates (height 8). 165-1.mpd: 55 → 214 connections (2026-03-28)
+- [x] Switch from .conn binary files to LDraw .dat parsing for stud/anti-stud extraction — universal coverage for all parts with .dat files (2026-03-28)
 </details>
 
 ## Project Structure

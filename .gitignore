@@ -56,3 +56,4 @@ checkpoints/
 *.dat
 *.npy
 *.claude
+*.conn

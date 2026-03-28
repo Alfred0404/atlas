@@ -19,10 +19,10 @@ pip install torch --index-url https://download.pytorch.org/whl/cu124
 python src/main.py
 
 # Train the model
-python train_model.py
+python -m src.model.train_model
 
 # Generate a new LEGO set
-python generate_model.py
+python -m src.model.generate_model
 
 # Run all tests
 pytest
