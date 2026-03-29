@@ -108,13 +108,15 @@ class MPDParser:
                 # compute world matrix to get the overall brick position and rotation
                 world_matrix = parent_matrix @ local_matrix
 
+                line_lower = line.lower()
+
                 # if submodel, recursively flatten it
-                if line.endswith(".ldr\n"):
+                if line_lower.endswith(".ldr\n"):
                     submodel_name = line.split(maxsplit=14)[-1]
                     self.flatten(submodel_name, world_matrix)
 
                 # if brick, extract its data and store it
-                elif line.endswith(".dat\n"):
+                elif line_lower.endswith(".dat\n"):
                     brick_vector, brick_id = line_to_vector(line)
                     brick_color = int(brick_vector[0])
 

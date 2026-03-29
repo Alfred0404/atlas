@@ -32,6 +32,10 @@ pytest tests/test_vocabulary.py
 
 # Run a single test
 pytest tests/test_vocabulary.py::TestVocabularyManager::test_add_part
+
+# Visualize assembly graph of a LEGO set
+python -m src.visualize_graph dataset/mpd_files/165-1.mpd
+python -m src.visualize_graph dataset/mpd_files/165-1.mpd --3d
 ```
 
 ## Architecture
@@ -66,6 +70,24 @@ Token ranges are defined by offsets in `src/config.py`:
 **Trainer** (`src/model/train.py`): AdamW (lr=3e-4), linear warmup (500 steps) → cosine annealing, gradient clipping at 1.0. Logit masking is enabled during training (`mask_logits=True`).
 
 **Generator** (`src/model/generate.py`): Temperature (0.8) + top-k (50) sampling with field-aware logit masking. Outputs .mpd files via `src/file_io/mpd_writer.py`.
+
+### Geometry Engine (LegoCore)
+
+Converts .mpd files into assembly graphs `G=(V, E)` where V=bricks and E=stud/anti-stud connections.
+
+```
+.mpd → MPDParser → list[RawBrickData] → LegoCore.from_raw_bricks() → G=(V, E)
+```
+
+- **ConnParser** (`src/geometry/conn_parser.py`) parses LDraw `.dat` files recursively to extract stud (male) and anti-stud (female) positions. Uses `_get_bottom_y()` to determine actual part height from geometry vertices (not from stud4.dat reference position).
+- **Port** (`src/geometry/port.py`) — frozen dataclass representing a connection point (position, normal, male/female type).
+- **LegoPart** / **PartDatabase** (`src/geometry/lego_part.py`) — combines ports + collision boxes per part, with lazy-loading cache.
+- **snap.py** (`src/geometry/snap.py`) — `check_snap()` matches male/female ports between two bricks (KDTree, pos_tol=2.0 LDU, normal anti-alignment). `find_all_connections()` pre-filters with brick-level KDTree (proximity_threshold=80 LDU).
+- **SpatialHash** (`src/geometry/spatial_hash.py`) — voxel grid (8 LDU cells) for O(1) collision detection.
+- **LegoCore** (`src/geometry/lego_core.py`) — main engine: `place_brick()`, `remove_brick()`, `validate_placement()`, `from_raw_bricks()`, `get_graph()`.
+- **Visualizer** (`src/visualize_graph.py`) — 2D (spring + spatial top-down) and 3D graph plots, colored by node degree.
+
+LDraw `.dat` files are read from `C:/Users/Public/Documents/LDraw/parts/` with primitives in `../p/`.
 
 ### Key Directories
 
@@ -230,5 +252,3 @@ Voici le rapport complet de simplification du projet ATLAS, agrégé à partir d
   1. KV-cache en génération (#1) — 10-50x plus rapide pour la génération
   2. Préchargement dataset en RAM (#3) — 2-10x plus rapide par epoch
   3. Cache du masque causal (#2) — 5-15% sur le training
-
-  Tu veux que je corrige certains de ces points ?

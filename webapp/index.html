@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATLAS — Graph Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #07090f;
+      --panel-bg:     rgba(8, 14, 28, 0.96);
+      --border:       #162035;
+      --border-hi:    #1e3a5f;
+      --accent:       #38bdf8;
+      --accent2:      #818cf8;
+      --male:         #f97316;
+      --female:       #818cf8;
+      --sel:          #fbbf24;
+      --text:         #dde6f5;
+      --muted:        #4a6680;
+      --danger:       #ef4444;
+      --radius:       8px;
+    }
+
+    html, body { width: 100%; height: 100%; background: var(--bg); color: var(--text);
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace; overflow: hidden;
+      font-size: 13px; }
+
+    /* ── Drop zone ─────────────────────────────────────────────────── */
+    #drop-zone {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: var(--bg); z-index: 200; transition: background 0.2s;
+    }
+    #drop-zone.drag-over { background: #0a1428; }
+    .drop-box {
+      border: 2px dashed var(--border-hi); border-radius: 16px;
+      padding: 60px 80px; text-align: center; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s; max-width: 480px; width: 90%;
+    }
+    #drop-zone.drag-over .drop-box { border-color: var(--accent); background: rgba(56,189,248,0.06); }
+    .drop-box svg { color: var(--accent); margin-bottom: 20px; }
+    .drop-box h2 { font-size: 1.4em; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+    .drop-box p { color: var(--muted); margin-bottom: 24px; font-size: 0.9em; }
+    .btn-primary {
+      display: inline-block; padding: 10px 24px; background: var(--accent);
+      color: #000; border-radius: var(--radius); font-family: inherit;
+      font-size: 0.9em; font-weight: 700; cursor: pointer; border: none;
+      transition: opacity 0.15s; letter-spacing: 0.04em;
+    }
+    .btn-primary:hover { opacity: 0.85; }
+    #file-input { display: none; }
+    .atlas-logo-drop { font-size: 1em; font-weight: 700; color: var(--muted); letter-spacing: 0.2em;
+      margin-bottom: 32px; text-transform: uppercase; }
+    .atlas-logo-drop span { color: var(--accent); }
+
+    /* ── Main app ───────────────────────────────────────────────────── */
+    #app { display: none; width: 100%; height: 100%; flex-direction: column; }
+    #app.visible { display: flex; }
+
+    header {
+      height: 46px; min-height: 46px; display: flex; align-items: center; gap: 16px;
+      padding: 0 16px; border-bottom: 1px solid var(--border);
+      background: var(--panel-bg); backdrop-filter: blur(12px); z-index: 10; flex-shrink: 0;
+    }
+    .logo { font-weight: 800; font-size: 1em; letter-spacing: 0.15em; color: var(--accent);
+      text-transform: uppercase; }
+    .logo span { color: var(--muted); font-weight: 400; }
+    #model-name { color: var(--text); font-weight: 600; font-size: 0.95em; flex: 1; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    .btn-sm {
+      padding: 5px 12px; background: transparent; border: 1px solid var(--border-hi);
+      color: var(--muted); border-radius: 6px; font-family: inherit; font-size: 0.8em;
+      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+    main { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── Canvas area ─────────────────────────────────────────────────── */
+    #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+    #canvas-wrap canvas { display: block; width: 100% !important; height: 100% !important; }
+
+    /* Overlay controls (bottom-left) */
+    .overlay {
+      position: absolute; bottom: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .toggle-row { display: flex; gap: 6px; }
+    .tog {
+      padding: 5px 10px; background: var(--panel-bg); border: 1px solid var(--border-hi);
+      color: var(--muted); border-radius: 6px; font-family: inherit; font-size: 0.78em;
+      cursor: pointer; transition: all 0.15s; backdrop-filter: blur(8px);
+    }
+    .tog.on { border-color: var(--accent); color: var(--accent); }
+    .tog:hover { border-color: var(--border-hi); color: var(--text); }
+    .tog.on:hover { border-color: var(--accent); }
+    select.tog {
+      appearance: none; -webkit-appearance: none; padding-right: 10px;
+      background-image: none;
+    }
+
+    /* Tooltip */
+    #tooltip {
+      position: absolute; pointer-events: none; background: var(--panel-bg);
+      border: 1px solid var(--border-hi); border-radius: 6px; padding: 7px 10px;
+      font-size: 0.82em; color: var(--text); z-index: 50; display: none;
+      backdrop-filter: blur(8px); max-width: 200px;
+    }
+    #tooltip .tt-part { color: var(--accent); font-weight: 700; }
+    #tooltip .tt-deg { color: var(--muted); font-size: 0.9em; }
+
+    /* Corner info */
+    #corner-info {
+      position: absolute; top: 12px; left: 12px; font-size: 0.75em; color: var(--muted);
+      pointer-events: none; line-height: 1.8;
+    }
+
+    /* ── Info panel ───────────────────────────────────────────────────── */
+    #panel {
+      width: 290px; min-width: 290px; background: var(--panel-bg); border-left: 1px solid var(--border);
+      overflow-y: auto; display: flex; flex-direction: column; gap: 0;
+      backdrop-filter: blur(12px);
+    }
+    #panel::-webkit-scrollbar { width: 4px; }
+    #panel::-webkit-scrollbar-track { background: transparent; }
+    #panel::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+
+    .panel-section {
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+    }
+    .panel-section h4 {
+      font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--muted); margin-bottom: 12px;
+    }
+
+    /* Stats grid */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-box {
+      background: rgba(56,189,248,0.04); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 12px;
+    }
+    .stat-val { font-size: 1.5em; font-weight: 700; color: var(--accent); line-height: 1.1; }
+    .stat-lbl { font-size: 0.72em; color: var(--muted); margin-top: 3px; }
+
+    /* Brick info */
+    .field { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+    .field-lbl { font-size: 0.7em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .field-val { font-size: 0.9em; color: var(--text); font-weight: 600; }
+    .color-swatch {
+      display: inline-block; width: 14px; height: 14px; border-radius: 3px;
+      margin-right: 6px; vertical-align: middle; border: 1px solid rgba(255,255,255,0.15);
+    }
+    .pos-val { font-size: 0.78em; color: var(--muted); }
+    .port-badge {
+      display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px;
+      border-radius: 4px; font-size: 0.8em; margin: 2px 4px 2px 0;
+    }
+    .port-badge.male { background: rgba(249,115,22,0.15); color: var(--male); }
+    .port-badge.female { background: rgba(129,140,248,0.15); color: var(--female); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot.male { background: var(--male); }
+    .dot.female { background: var(--female); }
+
+    /* Connections list */
+    .conn-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 10px; background: rgba(255,255,255,0.03); border-radius: 6px;
+      margin-bottom: 5px; cursor: pointer; transition: background 0.15s;
+      border: 1px solid transparent;
+    }
+    .conn-item:hover { background: rgba(56,189,248,0.08); border-color: var(--border-hi); }
+    .conn-part { font-weight: 600; color: var(--text); font-size: 0.88em; }
+    .conn-count { font-size: 0.75em; color: var(--accent); }
+
+    /* Port list */
+    .port-row {
+      display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+      border-radius: 5px; margin-bottom: 3px; font-size: 0.8em;
+    }
+    .port-row.used { background: rgba(56,189,248,0.07); }
+    .port-pos { color: var(--muted); font-size: 0.85em; }
+    .used-badge {
+      font-size: 0.7em; padding: 1px 5px; border-radius: 3px;
+      background: rgba(56,189,248,0.2); color: var(--accent); margin-left: auto;
+    }
+
+    .placeholder { color: var(--muted); font-size: 0.85em; text-align: center; padding: 20px 0; }
+
+    /* Loading overlay */
+    #loading {
+      position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+      flex-direction: column; gap: 16px; background: rgba(7,9,15,0.85);
+      backdrop-filter: blur(6px); z-index: 300;
+    }
+    #loading.visible { display: flex; }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid var(--border-hi);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { color: var(--muted); font-size: 0.9em; }
+
+    /* Error toast */
+    #error-toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(20,8,8,0.97); border: 1px solid var(--danger);
+      color: #fca5a5; padding: 12px 20px; border-radius: var(--radius);
+      font-size: 0.85em; z-index: 400; display: none; max-width: 500px;
+      text-align: center; backdrop-filter: blur(8px);
+    }
+    #error-toast.visible { display: block; }
+  </style>
+</head>
+<body>
+
+<!-- ── Drop zone ─────────────────────────────────────────────────────────── -->
+<div id="drop-zone">
+  <div class="drop-box" id="drop-box">
+    <div class="atlas-logo-drop">ATLAS <span>·</span> Graph Viewer</div>
+    <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+      <path d="M12 16V4m0 0-4 4m4-4 4 4M4 20h16" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h2>Drop an .mpd or .ldr file here</h2>
+    <p>LDraw Model File</p>
+    <label class="btn-primary" for="file-input">Browse file</label>
+    <input type="file" id="file-input" accept=".mpd,.ldr">
+  </div>
+</div>
+
+<!-- ── Main app ──────────────────────────────────────────────────────────── -->
+<div id="app">
+  <header>
+    <span class="logo">ATLAS <span>Graph Viewer</span></span>
+    <span id="model-name">—</span>
+    <button class="btn-sm" id="btn-reset">Load new file</button>
+  </header>
+  <main>
+    <div id="canvas-wrap">
+      <div id="corner-info"></div>
+      <div class="overlay">
+        <div class="toggle-row">
+          <button class="tog on"  data-tog="edges">Edges</button>
+          <button class="tog"     data-tog="allconns">All conns</button>
+          <button class="tog"     data-tog="ports">Ports</button>
+          <button class="tog"     data-tog="labels">Labels</button>
+        </div>
+        <div class="toggle-row">
+          <select class="tog" id="color-mode">
+            <option value="color">LDraw color</option>
+            <option value="degree">Connectivity</option>
+          </select>
+          <button class="btn-sm" id="btn-reset-cam" style="font-size:0.78em">Reset cam</button>
+        </div>
+        <div class="toggle-row" style="align-items:center;gap:8px">
+          <span style="color:var(--muted);font-size:0.78em;white-space:nowrap">Node size</span>
+          <input type="range" id="node-size" min="0.2" max="3" step="0.05" value="1"
+            style="flex:1;accent-color:var(--accent);cursor:pointer;min-width:80px">
+          <span id="node-size-val" style="color:var(--accent);font-size:0.78em;width:2.5em;text-align:right">1×</span>
+        </div>
+      </div>
+      <div id="tooltip"></div>
+    </div>
+    <aside id="panel">
+      <div class="panel-section">
+        <h4>Assembly</h4>
+        <div class="stats-grid">
+          <div class="stat-box"><div class="stat-val" id="s-bricks">—</div><div class="stat-lbl">Bricks</div></div>
+          <div class="stat-box"><div class="stat-val" id="s-conn">—</div><div class="stat-lbl">Connections</div></div>
+          <div class="stat-box"><div class="stat-val" id="s-comp">—</div><div class="stat-lbl">Components</div></div>
+          <div class="stat-box"><div class="stat-val" id="s-iso">—</div><div class="stat-lbl">Isolated</div></div>
+        </div>
+      </div>
+      <div class="panel-section" id="brick-section">
+        <h4>Selected brick</h4>
+        <div id="brick-content"><p class="placeholder">Click a brick to inspect it</p></div>
+      </div>
+      <div class="panel-section" id="ports-section" style="display:none">
+        <h4>Ports <span id="ports-subtitle" style="color:var(--muted);font-size:0.85em"></span></h4>
+        <div id="ports-content"></div>
+      </div>
+      <div class="panel-section" id="conns-section" style="display:none">
+        <h4>Connections <span id="conns-subtitle" style="color:var(--muted);font-size:0.85em"></span></h4>
+        <div id="conns-content"></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div id="loading"><div class="spinner"></div><p id="loading-msg">Parsing model…</p></div>
+<div id="error-toast" id="err"></div>
+
+<!-- ── Three.js ───────────────────────────────────────────────────────────── -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ──────────────────────────────────────────────────────────────── Constants ──
+
+const LDRAW_COLORS = {
+  0:'#05131D', 1:'#0055BF', 2:'#237841', 3:'#008F9B', 4:'#C91A09',
+  5:'#C870A0', 6:'#583927', 7:'#9BA19B', 8:'#575857', 9:'#87C0EA',
+  10:'#4B9F4A',11:'#55A5AF',12:'#F2705E',13:'#FC97AC',14:'#F2CD37',
+  15:'#FFFFFF',17:'#BEE90E',18:'#FAB78C',19:'#E4CD9E',22:'#81007B',
+  23:'#0909E8',25:'#FE8A18',26:'#B62258',27:'#A5CA18',28:'#7988A1',
+  29:'#9ECEB4',36:'#FF0000',37:'#00BE00',70:'#411E10',71:'#B3B3B3',
+  72:'#66675F',73:'#5C9DD1',84:'#CC8E69',85:'#3F3691',86:'#7C503A',
+  92:'#E6994F',151:'#A5A5CB',320:'#720012',484:'#CC6600',
+};
+function ldrawColor(code) {
+  return new THREE.Color(LDRAW_COLORS[code] ?? '#7f8c9a');
+}
+// Connectivity heatmap: 0 isolated → blue, mid → cyan, high → orange
+function degreeColor(d, max) {
+  const t = max > 0 ? Math.min(d / max, 1) : 0;
+  const r = t < 0.5 ? t * 2 * 0.2 : 0.2 + (t - 0.5) * 2 * 0.8;
+  const g = t < 0.5 ? 0.5 + t * 0.5 : 1.0 - (t - 0.5) * 2 * 0.4;
+  const b = t < 0.5 ? 1.0 - t * 2 * 0.5 : 0.5 - (t - 0.5) * 2 * 0.5;
+  return new THREE.Color(r, g, b);
+}
+
+const NODE_R    = 10;
+const PORT_R    =  4;
+const SEL_SCALE = 1.35;
+const Y_FLIP    = -1;   // LDraw Y is down, Three.js Y is up
+
+// ─────────────────────────────────────────────────────────────────── State ──
+
+let graphData   = null;
+let selectedId  = null;
+let hoveredId   = null;
+let showEdges   = true;
+let showAllConns = false;
+let showPorts   = false;
+let showLabels  = false;
+let colorMode   = 'color';
+let maxDegree   = 1;
+
+// map nodeId → {mesh, data, origColor}
+const nodeMap   = new Map();
+// map nodeId → list of edge objects {line, edgeData}
+const adjEdges  = new Map();
+
+// ───────────────────────────────────────────────────────────── Scene setup ──
+
+const canvasWrap = document.getElementById('canvas-wrap');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x07090f);
+canvasWrap.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100000);
+camera.position.set(200, 300, 400);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+// Lights
+scene.add(new THREE.AmbientLight(0x8fa8c8, 2.5));
+const sun = new THREE.DirectionalLight(0xffffff, 3);
+sun.position.set(300, 600, 400);
+scene.add(sun);
+scene.add(new THREE.DirectionalLight(0x3060a0, 1.5).position.set(-200, -200, -300));
+
+// Grid reference
+const grid = new THREE.GridHelper(2000, 50, 0x0f1e35, 0x0a1525);
+scene.add(grid);
+
+// Groups
+const nodeGroup         = new THREE.Group();
+const edgeGroup         = new THREE.Group();
+const portGroup         = new THREE.Group();
+const labelGroup        = new THREE.Group();
+const connLinesGroup    = new THREE.Group();
+const allConnsGroup     = new THREE.Group();
+scene.add(nodeGroup, edgeGroup, portGroup, labelGroup, connLinesGroup, allConnsGroup);
+
+// Shared geometries
+const nodeGeom   = new THREE.SphereGeometry(NODE_R, 20, 14);
+const portGeom   = new THREE.SphereGeometry(PORT_R, 10, 7);
+const ringGeom   = new THREE.SphereGeometry(NODE_R * SEL_SCALE, 20, 14);
+const ringMat    = new THREE.MeshBasicMaterial({
+  color: 0xfbbf24, wireframe: true, transparent: true, opacity: 0.55
+});
+let selRing      = null;
+
+// ─────────────────────────────────────────────────────── Raycasting / pick ──
+
+const raycaster  = new THREE.Raycaster();
+const mouse      = new THREE.Vector2(-9999, -9999);
+const tooltip    = document.getElementById('tooltip');
+
+renderer.domElement.addEventListener('mousemove', onMouseMove);
+renderer.domElement.addEventListener('click',     onClick);
+
+function onMouseMove(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.set(
+    ((e.clientX - r.left)  / r.width  - 0.5) * 2,
+    -((e.clientY - r.top)  / r.height - 0.5) * 2
+  );
+  // tooltip position
+  tooltip.style.left = (e.clientX - r.left + 14) + 'px';
+  tooltip.style.top  = (e.clientY - r.top  - 10) + 'px';
+}
+
+function onClick() {
+  const hit = pickNode();
+  if (hit !== null) selectNode(hit);
+  else deselectNode();
+}
+
+function pickNode() {
+  raycaster.setFromCamera(mouse, camera);
+  const meshes = [...nodeMap.values()].map(n => n.mesh);
+  const hits   = raycaster.intersectObjects(meshes);
+  if (hits.length === 0) return null;
+  const mesh = hits[0].object;
+  for (const [id, n] of nodeMap) if (n.mesh === mesh) return id;
+  return null;
+}
+
+// ─────────────────────────────────────────────────── Build scene from data ──
+
+function ldv(pos) {
+  // LDraw → Three.js: negate X and flip Y (single-axis flip creates a mirror; negating both restores handedness)
+  return new THREE.Vector3(-pos[0], Y_FLIP * pos[1], pos[2]);
+}
+
+function buildScene(data) {
+  graphData = data;
+  maxDegree = Math.max(1, ...data.nodes.map(n => n.degree));
+
+  // Clear old scene objects
+  nodeGroup.clear(); edgeGroup.clear(); portGroup.clear(); labelGroup.clear(); connLinesGroup.clear(); allConnsGroup.clear();
+  nodeMap.clear(); adjEdges.clear();
+
+  // Deduplicate edges: one visual per brick-pair (show all port lines on select)
+  const pairMap = new Map(); // "a-b" → list of raw edges
+  for (const e of data.edges) {
+    const key = `${Math.min(e.node_a,e.node_b)}-${Math.max(e.node_a,e.node_b)}`;
+    if (!pairMap.has(key)) pairMap.set(key, []);
+    pairMap.get(key).push(e);
+  }
+
+  // Nodes
+  const nodeById = {};
+  for (const nd of data.nodes) nodeById[nd.id] = nd;
+
+  for (const nd of data.nodes) {
+    const col  = colorMode === 'degree'
+      ? degreeColor(nd.degree, maxDegree)
+      : ldrawColor(nd.color);
+    const mat  = new THREE.MeshStandardMaterial({
+      color: col, roughness: 0.55, metalness: 0.15,
+    });
+    const mesh = new THREE.Mesh(nodeGeom, mat);
+    const pos  = ldv(nd.position);
+    mesh.position.copy(pos);
+    nodeGroup.add(mesh);
+    nodeMap.set(nd.id, { mesh, data: nd, origColor: col.clone() });
+    adjEdges.set(nd.id, []);
+  }
+
+  // Edges
+  for (const [, rawEdges] of pairMap) {
+    const first = rawEdges[0];
+    const ndA   = nodeById[first.node_a];
+    const ndB   = nodeById[first.node_b];
+    if (!ndA || !ndB) continue;
+
+    // Use average of port positions for the line endpoints
+    const posAs = rawEdges
+      .map(e => e.port_a_world_position ?? ndA.position)
+      .map(ldv);
+    const posBs = rawEdges
+      .map(e => e.port_b_world_position ?? ndB.position)
+      .map(ldv);
+    const avgA  = posAs.reduce((a, b) => a.add(b), new THREE.Vector3()).divideScalar(posAs.length);
+    const avgB  = posBs.reduce((a, b) => a.add(b), new THREE.Vector3()).divideScalar(posBs.length);
+
+    const geom  = new THREE.BufferGeometry().setFromPoints([avgA, avgB]);
+    const mat   = new THREE.LineBasicMaterial({
+      color: 0x2a6080, transparent: true, opacity: 0.55
+    });
+    const line  = new THREE.Line(geom, mat);
+    line.visible = showEdges;
+    edgeGroup.add(line);
+
+    const obj = { line, edges: rawEdges, nodeA: first.node_a, nodeB: first.node_b };
+    adjEdges.get(first.node_a)?.push(obj);
+    adjEdges.get(first.node_b)?.push(obj);
+  }
+
+  // Labels (canvas sprites)
+  if (showLabels) buildLabels(data.nodes);
+
+  fitCamera(data.nodes);
+  updateGrid(data.nodes);
+}
+
+function buildLabels(nodes) {
+  labelGroup.clear();
+  for (const nd of nodes) {
+    const canvas  = document.createElement('canvas');
+    canvas.width  = 128; canvas.height = 32;
+    const ctx     = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fillRect(0, 0, 128, 32);
+    ctx.font      = 'bold 18px monospace';
+    ctx.fillStyle = '#e2e8f0';
+    ctx.textAlign = 'center';
+    ctx.fillText(nd.part_id, 64, 22);
+    const tex     = new THREE.CanvasTexture(canvas);
+    const sprite  = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthTest: false
+    }));
+    const pos     = ldv(nd.position);
+    sprite.position.set(pos.x, pos.y + NODE_R * 1.8, pos.z);
+    sprite.scale.set(40, 12, 1);
+    labelGroup.add(sprite);
+  }
+}
+
+function updateGrid(nodes) {
+  if (!nodes.length) return;
+  const minY = Math.min(...nodes.map(n => Y_FLIP * n.position[1]));
+  grid.position.y = minY - NODE_R * 1.5;
+}
+
+function fitCamera(nodes) {
+  if (!nodes.length) return;
+  const box = new THREE.Box3();
+  for (const n of nodes) box.expandByPoint(ldv(n.position));
+  const center = box.getCenter(new THREE.Vector3());
+  const size   = box.getSize(new THREE.Vector3()).length();
+  controls.target.copy(center);
+  camera.position.copy(center.clone().add(new THREE.Vector3(size * 0.6, size * 0.5, size * 0.8)));
+  camera.near = size * 0.001;
+  camera.far  = size * 10;
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
+// ──────────────────────────────────────────────────────── Selection / hover ──
+
+function selectNode(id) {
+  deselectNode(false);
+  selectedId = id;
+  const entry = nodeMap.get(id);
+  if (!entry) return;
+
+  // Selection ring
+  selRing = new THREE.Mesh(ringGeom, ringMat.clone());
+  selRing.position.copy(entry.mesh.position);
+  scene.add(selRing);
+
+  // Highlight connected edges
+  for (const obj of adjEdges.get(id) ?? []) {
+    obj.line.material.color.set(0x38bdf8);
+    obj.line.material.opacity = 0.9;
+  }
+
+  // Draw bright lines to each neighbor
+  showConnectionLines(id);
+
+  // Show port spheres (only if toggle is on)
+  if (showPorts) showPortSpheres(id);
+
+  // Update panel
+  updateBrickPanel(entry.data);
+}
+
+function buildAllConnectionLines() {
+  allConnsGroup.clear();
+  if (!graphData) return;
+  const seen = new Set();
+  for (const e of graphData.edges) {
+    const key = `${Math.min(e.node_a, e.node_b)}-${Math.max(e.node_a, e.node_b)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const from = nodeMap.get(e.node_a)?.mesh.position;
+    const to   = nodeMap.get(e.node_b)?.mesh.position;
+    if (!from || !to) continue;
+    const geom = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
+    const mat  = new THREE.LineBasicMaterial({
+      color: 0xfbbf24, transparent: true, opacity: 0.35, depthTest: false,
+    });
+    allConnsGroup.add(new THREE.Line(geom, mat));
+  }
+}
+
+function showConnectionLines(nodeId) {
+  connLinesGroup.clear();
+  const from = nodeMap.get(nodeId)?.mesh.position;
+  if (!from) return;
+
+  const seen = new Set();
+  for (const obj of adjEdges.get(nodeId) ?? []) {
+    const neighborId = obj.nodeA === nodeId ? obj.nodeB : obj.nodeA;
+    if (seen.has(neighborId)) continue;
+    seen.add(neighborId);
+
+    const to = nodeMap.get(neighborId)?.mesh.position;
+    if (!to) continue;
+
+    const geom = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
+    const mat  = new THREE.LineBasicMaterial({
+      color: 0xfbbf24, transparent: true, opacity: 0.9, depthTest: false,
+    });
+    connLinesGroup.add(new THREE.Line(geom, mat));
+  }
+}
+
+function deselectNode(clearPanel = true) {
+  if (selRing) { scene.remove(selRing); selRing = null; }
+
+  if (selectedId !== null) {
+    for (const obj of adjEdges.get(selectedId) ?? []) {
+      obj.line.material.color.set(0x2a6080);
+      obj.line.material.opacity = 0.55;
+    }
+    const e = nodeMap.get(selectedId);
+    if (e) {
+      e.mesh.material.emissive.set(0x000000);
+      e.mesh.material.emissiveIntensity = 0;
+    }
+  }
+  selectedId = null;
+  portGroup.clear();
+  connLinesGroup.clear();
+  if (clearPanel) {
+    document.getElementById('brick-content').innerHTML =
+      '<p class="placeholder">Click a brick to inspect it</p>';
+    document.getElementById('ports-section').style.display = 'none';
+    document.getElementById('conns-section').style.display = 'none';
+  }
+}
+
+function showPortSpheres(nodeId) {
+  portGroup.clear();
+  const nd = nodeMap.get(nodeId)?.data;
+  if (!nd || !nd.ports.length) return;
+
+  // Collect used port IDs for this node
+  const usedPorts = new Set();
+  for (const e of graphData.edges) {
+    if (e.node_a === nodeId) usedPorts.add(e.port_a_id);
+    if (e.node_b === nodeId) usedPorts.add(e.port_b_id);
+  }
+
+  for (const port of nd.ports) {
+    const isMale  = port.type === 'male';
+    const isUsed  = usedPorts.has(port.port_id);
+    const color   = isMale ? 0xf97316 : 0x818cf8;
+    const mat     = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: isUsed ? 0.7 : 0.3,
+      roughness: 0.4,
+      metalness: 0.2,
+      transparent: !isUsed,
+      opacity:    isUsed ? 1 : 0.6,
+    });
+    const sphere  = new THREE.Mesh(portGeom, mat);
+    sphere.position.copy(ldv(port.world_position));
+    portGroup.add(sphere);
+  }
+}
+
+// ─────────────────────────────────────────────────────────── Panel updates ──
+
+function updateBrickPanel(nd) {
+  // Brick info
+  const hex = LDRAW_COLORS[nd.color] ?? '#7f8c9a';
+  document.getElementById('brick-content').innerHTML = `
+    <div class="field">
+      <span class="field-lbl">Part ID</span>
+      <span class="field-val">${nd.part_id}</span>
+    </div>
+    <div class="field">
+      <span class="field-lbl">Color</span>
+      <span class="field-val">
+        <span class="color-swatch" style="background:${hex}"></span>
+        #${nd.color}
+      </span>
+    </div>
+    <div class="field">
+      <span class="field-lbl">Position (LDU)</span>
+      <span class="pos-val">
+        x ${nd.position[0].toFixed(1)}&nbsp;&nbsp;
+        y ${nd.position[1].toFixed(1)}&nbsp;&nbsp;
+        z ${nd.position[2].toFixed(1)}
+      </span>
+    </div>
+    <div class="field">
+      <span class="field-lbl">Ports</span>
+      <span class="field-val">
+        <span class="port-badge male"><span class="dot male"></span>${nd.ports.filter(p=>p.type==='male').length} studs</span>
+        <span class="port-badge female"><span class="dot female"></span>${nd.ports.filter(p=>p.type==='female').length} anti-studs</span>
+      </span>
+    </div>
+    <div class="field">
+      <span class="field-lbl">Connections</span>
+      <span class="field-val">${nd.degree}</span>
+    </div>
+  `;
+
+  // Ports panel
+  const portsSection = document.getElementById('ports-section');
+  const portsContent = document.getElementById('ports-content');
+  document.getElementById('ports-subtitle').textContent = `(${nd.ports.length})`;
+
+  if (nd.ports.length) {
+    portsSection.style.display = '';
+    const usedPorts = new Set();
+    for (const e of graphData.edges) {
+      if (e.node_a === nd.id) usedPorts.add(e.port_a_id);
+      if (e.node_b === nd.id) usedPorts.add(e.port_b_id);
+    }
+    portsContent.innerHTML = nd.ports.map(p => {
+      const used = usedPorts.has(p.port_id);
+      const wp   = p.world_position;
+      return `<div class="port-row ${used ? 'used' : ''}">
+        <span class="dot ${p.type}"></span>
+        <span style="color:var(--${p.type === 'male' ? 'male' : 'female'})">${p.type}</span>
+        <span class="port-pos">${wp[0].toFixed(0)},${wp[1].toFixed(0)},${wp[2].toFixed(0)}</span>
+        ${used ? '<span class="used-badge">connected</span>' : ''}
+      </div>`;
+    }).join('');
+  } else {
+    portsSection.style.display = 'none';
+  }
+
+  // Connections panel
+  const connsSection = document.getElementById('conns-section');
+  const connsContent = document.getElementById('conns-content');
+  const nodeById     = Object.fromEntries(graphData.nodes.map(n => [n.id, n]));
+  const neighbors    = new Map(); // neighborId → # connections
+
+  for (const e of graphData.edges) {
+    if (e.node_a === nd.id) neighbors.set(e.node_b, (neighbors.get(e.node_b) ?? 0) + 1);
+    if (e.node_b === nd.id) neighbors.set(e.node_a, (neighbors.get(e.node_a) ?? 0) + 1);
+  }
+
+  document.getElementById('conns-subtitle').textContent = `(${neighbors.size} bricks)`;
+
+  if (neighbors.size) {
+    connsSection.style.display = '';
+    connsContent.innerHTML = [...neighbors.entries()].map(([nid, cnt]) => {
+      const nb  = nodeById[nid];
+      const hex = LDRAW_COLORS[nb?.color] ?? '#7f8c9a';
+      return `<div class="conn-item" data-nid="${nid}">
+        <span><span class="color-swatch" style="background:${hex}"></span>
+        <span class="conn-part">${nb?.part_id ?? nid}</span></span>
+        <span class="conn-count">${cnt} port${cnt > 1 ? 's' : ''}</span>
+      </div>`;
+    }).join('');
+    // Click to select neighbor
+    connsContent.querySelectorAll('.conn-item').forEach(el => {
+      el.addEventListener('click', () => selectNode(+el.dataset.nid));
+    });
+  } else {
+    connsSection.style.display = 'none';
+  }
+}
+
+// ──────────────────────────────────────────────────────────── UI controls ──
+
+document.querySelectorAll('[data-tog]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.tog;
+    btn.classList.toggle('on');
+    const on = btn.classList.contains('on');
+    if (key === 'edges') {
+      showEdges = on;
+      edgeGroup.visible = on;
+    } else if (key === 'allconns') {
+      showAllConns = on;
+      if (on) buildAllConnectionLines();
+      else allConnsGroup.clear();
+    } else if (key === 'ports') {
+      showPorts = on;
+      if (selectedId !== null) showPortSpheres(selectedId);
+      else portGroup.clear();
+    } else if (key === 'labels') {
+      showLabels = on;
+      if (on && graphData) buildLabels(graphData.nodes);
+      else labelGroup.clear();
+    }
+  });
+});
+
+document.getElementById('color-mode').addEventListener('change', e => {
+  colorMode = e.target.value;
+  if (!graphData) return;
+  for (const nd of graphData.nodes) {
+    const entry = nodeMap.get(nd.id);
+    if (!entry) continue;
+    const col = colorMode === 'degree'
+      ? degreeColor(nd.degree, maxDegree)
+      : ldrawColor(nd.color);
+    entry.mesh.material.color.copy(col);
+    entry.origColor = col.clone();
+  }
+});
+
+document.getElementById('btn-reset-cam').addEventListener('click', () => {
+  if (graphData) fitCamera(graphData.nodes);
+});
+
+const nodeSizeSlider = document.getElementById('node-size');
+const nodeSizeVal    = document.getElementById('node-size-val');
+nodeSizeSlider.addEventListener('input', () => {
+  const s = parseFloat(nodeSizeSlider.value);
+  nodeSizeVal.textContent = s.toFixed(2) + '×';
+  for (const { mesh } of nodeMap.values()) mesh.scale.setScalar(s);
+  if (selRing) selRing.scale.setScalar(s);
+});
+
+document.getElementById('btn-reset').addEventListener('click', resetApp);
+
+// ──────────────────────────────────────────────────────────────── File I/O ──
+
+function setupDrop() {
+  const zone     = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) loadFile(fileInput.files[0]);
+  });
+}
+
+async function loadFile(file) {
+  showLoading('Parsing ' + file.name + '…');
+  try {
+    const fd  = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/parse', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? 'Server error');
+
+    hideLoading();
+    document.getElementById('drop-zone').style.display    = 'none';
+    document.getElementById('app').classList.add('visible');
+    document.getElementById('model-name').textContent = data.model_name;
+    document.getElementById('s-bricks').textContent = data.stats.num_bricks;
+    document.getElementById('s-conn').textContent   = data.stats.num_connections;
+    document.getElementById('s-comp').textContent   = data.stats.num_components;
+    document.getElementById('s-iso').textContent    = data.stats.isolated;
+    buildScene(data);
+    resize();
+  } catch (err) {
+    hideLoading();
+    showError(err.message);
+  }
+}
+
+function resetApp() {
+  document.getElementById('drop-zone').style.display = '';
+  document.getElementById('app').classList.remove('visible');
+  graphData   = null;
+  selectedId  = null;
+  nodeGroup.clear(); edgeGroup.clear(); portGroup.clear(); labelGroup.clear(); connLinesGroup.clear(); allConnsGroup.clear();
+  nodeMap.clear(); adjEdges.clear();
+  if (selRing) { scene.remove(selRing); selRing = null; }
+}
+
+// ──────────────────────────────────────────────────────── Resize + animate ──
+
+function resize() {
+  const w = canvasWrap.clientWidth;
+  const h = canvasWrap.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Tooltip + hover update in render loop
+function updateHover() {
+  if (!graphData) return;
+  raycaster.setFromCamera(mouse, camera);
+  const meshes = [...nodeMap.values()].map(n => n.mesh);
+  const hits   = raycaster.intersectObjects(meshes);
+
+  let newHov = null;
+  if (hits.length) {
+    const mesh = hits[0].object;
+    for (const [id, n] of nodeMap) { if (n.mesh === mesh) { newHov = id; break; } }
+  }
+
+  if (newHov !== hoveredId) {
+    // Always reset the old hovered node
+    if (hoveredId !== null) {
+      const e = nodeMap.get(hoveredId);
+      if (e) {
+        e.mesh.material.emissive.set(0x000000);
+        e.mesh.material.emissiveIntensity = 0;
+      }
+    }
+    // Highlight new hovered node (skip if it's the selected one)
+    if (newHov !== null && newHov !== selectedId) {
+      const e = nodeMap.get(newHov);
+      if (e) {
+        e.mesh.material.emissive.set(0x38bdf8);
+        e.mesh.material.emissiveIntensity = 0.4;
+      }
+    }
+    hoveredId = newHov;
+  }
+
+  // Tooltip
+  if (hoveredId !== null) {
+    const nd = nodeMap.get(hoveredId)?.data;
+    if (nd) {
+      const hex = LDRAW_COLORS[nd.color] ?? '#7f8c9a';
+      tooltip.innerHTML = `
+        <div class="tt-part"><span class="color-swatch" style="background:${hex};display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle;border:1px solid rgba(255,255,255,0.2)"></span>${nd.part_id}</div>
+        <div class="tt-deg">${nd.degree} connection${nd.degree !== 1 ? 's' : ''} · ${nd.ports.length} ports</div>
+      `;
+      tooltip.style.display = 'block';
+    }
+  } else {
+    tooltip.style.display = 'none';
+  }
+
+  // Selected ring pulse
+  if (selRing) {
+    const t = performance.now() / 1000;
+    selRing.material.opacity = 0.35 + 0.2 * Math.sin(t * 2.5);
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  updateHover();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ──────────────────────────────────────────────────── Loading / error UI ──
+
+function showLoading(msg) {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('loading').classList.add('visible');
+}
+function hideLoading() {
+  document.getElementById('loading').classList.remove('visible');
+}
+function showError(msg) {
+  const el = document.getElementById('error-toast');
+  el.textContent = '⚠ ' + msg;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 6000);
+}
+
+setupDrop();
+resize();
+</script>
+</body>
+</html>

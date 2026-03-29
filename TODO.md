@@ -62,6 +62,14 @@
 - [x] Test collision/connectivity via `.conn` with generated 2-brick stacked `.mpd` ([test_conn_collision_stack.py](test_conn_collision_stack.py), 2026-03-27)
 </details>
 
+## Web App
+
+<details>
+    <summary style="font-style:bold">Done</summary>
+- [x] Web app (Flask + Three.js) for interactive 3D assembly graph visualization — drag & drop .mpd, shows bricks at real 3D positions, connections, port spheres, info panel ([webapp/](webapp/), 2026-03-29)
+- [x] Fix MPDParser.flatten() case-insensitive extension matching (.DAT/.LDR uppercase variants) (2026-03-29)
+</details>
+
 ## Graph Transformer / LegoCore
 
 - [ ] Implement SAT (Separating Axis Theorem) for precise OBB-OBB collision detection

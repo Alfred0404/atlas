@@ -67,8 +67,6 @@ Le pipeline transforme des fichiers LDraw bruts en séquences tokenisées, puis 
 
 ```
 ATLAS/
-├── train_model.py              # Point d'entrée entraînement
-├── generate_model.py           # Point d'entrée génération
 ├── atlas_config.json           # Vocabulaire et configuration spatiale
 ├── dataset/
 │   ├── mpd_files/              # Fichiers .mpd / .ldr bruts
@@ -79,8 +77,9 @@ ATLAS/
 ├── src/
 │   ├── config.py               # Constantes globales et chemins
 │   ├── main.py                 # Point d'entrée traitement du dataset
+│   ├── visualize_graph.py      # Visualisation des graphes d'assemblage
 │   ├── core/
-│   │   ├── tokenizer.py        # Conversion brique $\rightarrow$ tokens
+│   │   ├── tokenizer.py        # Conversion brique → tokens
 │   │   └── vocabulary.py       # Gestion du vocabulaire
 │   ├── data/
 │   │   ├── builder.py          # Pipeline de traitement end-to-end
@@ -92,6 +91,14 @@ ATLAS/
 │   │   ├── mpd_writer.py       # Export MPD
 │   │   ├── scraper.py          # Téléchargement de datasets
 │   │   └── omr_scraper.py      # Scraper OMR
+│   ├── geometry/
+│   │   ├── conn_parser.py      # Extraction studs/anti-studs depuis .dat
+│   │   ├── col_parser.py       # Parser collision boxes (.col)
+│   │   ├── port.py             # Dataclass Port (position, normale, type)
+│   │   ├── lego_part.py        # LegoPart + PartDatabase (cache)
+│   │   ├── snap.py             # Détection connexions stud/anti-stud
+│   │   ├── spatial_hash.py     # Grille voxel pour collision O(1)
+│   │   └── lego_core.py        # Moteur principal (graphe + validation)
 │   ├── maths/
 │   │   ├── rotations.py        # 24 rotations orthogonales discrètes
 │   │   └── transforms.py       # Extraction positions/rotations
@@ -99,7 +106,9 @@ ATLAS/
 │   │   ├── config.py           # ModelConfig dataclass
 │   │   ├── transformer.py      # ATLASTransformer (nn.Module)
 │   │   ├── train.py            # Trainer (AdamW + cosine LR)
-│   │   └── generate.py         # Génération par sampling
+│   │   ├── generate.py         # Génération par sampling
+│   │   ├── train_model.py      # Point d'entrée entraînement
+│   │   └── generate_model.py   # Point d'entrée génération
 │   └── utils/
 │       └── logging.py          # Configuration du logging
 └── tests/
@@ -107,7 +116,14 @@ ATLAS/
     ├── test_augmentation.py
     ├── test_integration.py
     ├── test_rotations.py
-    └── test_vocabulary.py
+    ├── test_vocabulary.py
+    └── test_geometry/
+        ├── test_port.py
+        ├── test_conn_parser.py
+        ├── test_col_parser.py
+        ├── test_snap.py
+        ├── test_spatial_hash.py
+        └── test_lego_core.py
 ```
 
 ### Pipeline de données
@@ -139,12 +155,27 @@ ATLAS/
 
 **Génération** : sampling temperature + top-k avec masquage de logits par champ. Export `.mpd` via `mpd_writer.py`.
 
+### Moteur Géométrique (LegoCore)
+
+Convertit les fichiers `.mpd` en graphes d'assemblage `G=(V, E)` où V = briques et E = connexions stud/anti-stud.
+
+```
+.mpd → MPDParser → list[RawBrickData] → LegoCore.from_raw_bricks() → G=(V, E)
+```
+
+- **ConnParser** parse récursivement les fichiers LDraw `.dat` pour extraire les positions des studs (male) et anti-studs (female), en déterminant la hauteur réelle de chaque pièce depuis la géométrie (pas depuis les références stud4.dat).
+- **snap.py** matche les ports male/female entre paires de briques (KDTree, tolérance 2 LDU, alignement des normales).
+- **LegoCore** maintient le graphe complet : placement, validation, suppression de briques, export.
+
+Les fichiers `.dat` sont lus depuis la bibliothèque LDraw installée (`C:/Users/Public/Documents/LDraw/parts/`).
+
 ## Utilisation
 
 - Flux de travail typique :
   1. Traiter le dataset : `python src/main.py`
-  2. Entraîner le modèle : `python train_model.py`
-  3. Générer un set : `python generate_model.py`
+  2. Entraîner le modèle : `python -m src.model.train_model`
+  3. Générer un set : `python -m src.model.generate_model`
+  4. Visualiser le graphe : `python -m src.visualize_graph dataset/mpd_files/165-1.mpd`
 
 Les fichiers `.mpd` générés sont sauvegardés dans `generated_sets/` et peuvent être ouverts dans n'importe quel viewer LDraw (Studio, LDView, etc.).
 
