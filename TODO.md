@@ -4,7 +4,7 @@
 
 - [ ] Finir les corrections du code simplifier (claude.md)
 - [ ] Sort/classify sets by theme using Rebrickable API (map set numbers to themes, enable theme-filtered or theme-conditioned training)
-- [ ] Larger training dataset + train/val split with early stopping
+- [x] Larger training dataset + train/val split with early stopping (graph_build_dataset.py, 2026-03-30)
 - [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)
 
 [.conn files documentation](https://forums.ldraw.org/thread-28521-post-59984.html#pid59984)
@@ -68,13 +68,23 @@
     <summary style="font-style:bold">Done</summary>
 - [x] Web app (Flask + Three.js) for interactive 3D assembly graph visualization — drag & drop .mpd, shows bricks at real 3D positions, connections, port spheres, info panel ([webapp/](webapp/), 2026-03-29)
 - [x] Fix MPDParser.flatten() case-insensitive extension matching (.DAT/.LDR uppercase variants) (2026-03-29)
+- [x] Expand ConnParser stud primitive lists (logo variants, fraction stud4 variants, missing studs); use actual detected anti-stud positions instead of inferring female ports from male Y (2026-03-29)
+- [x] Fix SNOT/horizontal stud detection: derive port normals from transformation matrix Y-column instead of hardcoding [0,±1,0]; add horizontal female ports from detected antistud primitives (2026-03-30)
 </details>
 
 ## Graph Transformer / LegoCore
 
-- [ ] Implement SAT (Separating Axis Theorem) for precise OBB-OBB collision detection
-- [ ] Build MPD-to-graph preprocessing pipeline (LegoCore.from_raw_bricks -> .npz)
-- [ ] Design Graph Transformer model architecture
+- [ ] Implement SAT (Separating Axis Theorem) for precise OBB-OBB collision detection (generation only, not blocking)
+- [x] Optimize graph dataset pass 2 preprocessing (worker-shared vocab, faster connection build, lighter action replay) (2026-03-30)
+- [x] Improve graph training observability: startup/index progress logs, step loss logs, and latest checkpoint each epoch (2026-03-30)
+- [x] Fix graph generation stopping at one brick: load real vocab mapping, fix CPU/CUDA batch-device mismatch, validate/fallback seed part, and lazily filter invalid sampled parts (2026-03-30)
+- [x] snap_math.py — compute_snap_matrix + extract_rot_steps (2026-03-30)
+- [x] graph_builder.py — MPD → labeled .npz preprocessing pipeline (2026-03-30)
+- [x] graph_dataset.py — AssemblyStepDataset (PyTorch + PyG) (2026-03-30)
+- [x] graph_config.py + graph_transformer.py — model (2026-03-30)
+- [x] graph_train.py — training loop (2026-03-30)
+- [x] graph_generate.py — generation loop (2026-03-30)
+- See doc/graph_transformer_plan.md for full design
 
 <details>
     <summary style="font-style:bold">Done</summary>

@@ -12,23 +12,36 @@ _DEFAULT_PARTS_DIR = Path("C:/Users/Public/Documents/LDraw/parts")
 
 # Primitive names that represent a stud (male connection point).
 _STUD_NAMES = frozenset({
-    "stud.dat",
-    "stud2.dat",
-    "stud2a.dat",
-    "stud10.dat",
-    "stud15.dat",
-    "stud17a.dat",
+    # Standard open/solid studs
+    "stud.dat", "stud2.dat", "stud2a.dat", "stud2s.dat", "stud2s2.dat",
+    "studa.dat",
+    # Logo variants — functionally identical to stud/stud2
+    "stud-logo.dat", "stud-logo2.dat", "stud-logo3.dat", "stud-logo4.dat", "stud-logo5.dat",
+    "stud2-logo.dat", "stud2-logo2.dat", "stud2-logo3.dat", "stud2-logo4.dat", "stud2-logo5.dat",
+    # SNOT and specialty studs
+    "stud10.dat", "stud13.dat", "stud15.dat",
+    "stud16.dat", "stud16a.dat", "stud17.dat", "stud17a.dat",
+    "stud20.dat", "studp01.dat",
 })
 
-# Primitive names that represent an anti-stud / underside tube.
+# Primitive names that represent an anti-stud / underside tube (female).
 _ANTISTUD_NAMES = frozenset({
-    "stud3.dat",
-    "stud3a.dat",
-    "stud4.dat",
-    "stud4a.dat",
-    "stud4h.dat",
-    "stud4o.dat",
-    "stud4s2.dat",
+    # Standard tubes
+    "stud3.dat", "stud3a.dat",
+    "stud4.dat", "stud4a.dat", "stud4h.dat",
+    "stud4o.dat", "stud4od.dat", "stud4oda.dat",
+    "stud4s.dat", "stud4s2.dat",
+    # Fraction variants for curved / fan-shaped parts
+    "1-16stud4.dat", "1-4stud4.dat", "1-8stud4.dat",
+    "2-4stud4.dat", "2-4stud4a.dat", "2-4stud4f1w.dat",
+    "3-16stud4.dat", "3-16stud4t4.dat", "3-4stud4.dat",
+    "5-16stud4.dat",
+    # Partial-width stud4 faces
+    "stud4f1n.dat", "stud4f1s.dat", "stud4f1w.dat",
+    "stud4f2n.dat", "stud4f2s.dat", "stud4f2w.dat",
+    "stud4f3n.dat", "stud4f3s.dat",
+    "stud4f4n.dat", "stud4f4s.dat",
+    "stud4f5n.dat",
 })
 
 # Max recursion depth when resolving subfiles.
@@ -174,10 +187,15 @@ class ConnParser:
         filename: str,
         parent_matrix: np.ndarray,
         depth: int,
-    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-        """Recursively collect stud and anti-stud world positions.
+    ) -> tuple[list[tuple[np.ndarray, np.ndarray]], list[tuple[np.ndarray, np.ndarray]]]:
+        """Recursively collect stud and anti-stud positions with their normals.
 
-        Returns ``(male_positions, female_positions)`` as lists of (3,) arrays.
+        Returns ``(males, females)`` where each entry is a ``(position, normal)``
+        tuple.  The normal is derived from the transformation matrix: a stud
+        protrudes in its local ``-Y`` direction, so the world-space normal is
+        ``-R[:,1]`` (the negated Y-column of the rotation part).  This correctly
+        captures both vertical studs (normal ≈ [0,-1,0]) and SNOT studs whose
+        transformation rotates the Y-axis to a horizontal direction.
         """
         if depth > _MAX_DEPTH:
             return [], []
@@ -186,8 +204,8 @@ class ConnParser:
         if path is None:
             return [], []
 
-        males: list[np.ndarray] = []
-        females: list[np.ndarray] = []
+        males: list[tuple[np.ndarray, np.ndarray]] = []
+        females: list[tuple[np.ndarray, np.ndarray]] = []
 
         for line in path.read_text(errors="replace").splitlines():
             parsed = _parse_type1_line(line)
@@ -199,9 +217,17 @@ class ConnParser:
             base_name = ref_name.split("/")[-1]
 
             if base_name in _STUD_NAMES:
-                males.append(world_matrix[:3, 3].copy())
+                pos = world_matrix[:3, 3].copy()
+                y_col = world_matrix[:3, 1]
+                length = np.linalg.norm(y_col)
+                normal = -y_col / length if length > 1e-8 else np.array([0.0, -1.0, 0.0])
+                males.append((pos, normal))
             elif base_name in _ANTISTUD_NAMES:
-                females.append(world_matrix[:3, 3].copy())
+                pos = world_matrix[:3, 3].copy()
+                y_col = world_matrix[:3, 1]
+                length = np.linalg.norm(y_col)
+                normal = y_col / length if length > 1e-8 else np.array([0.0, 1.0, 0.0])
+                females.append((pos, normal))
             elif base_name.endswith(".dat"):
                 # Recurse into subfiles (e.g. s/3001s01.dat).
                 sub_m, sub_f = self._collect_studs(ref_name, world_matrix, depth + 1)
@@ -213,58 +239,87 @@ class ConnParser:
     def parse(self, part_id: str) -> list[Port]:
         """Parse a .dat file and return stud/anti-stud ports.
 
-        For each male stud found, a female anti-stud is inferred at the
-        same (x, z) position but at the bottom Y of the part.
+        Male ports come from detected stud primitives; their normals are derived
+        from the transformation matrix so SNOT (horizontal) studs get the correct
+        non-vertical normal.
+
+        Female ports are handled differently by orientation:
+        - **Vertical** males (|normal.y| > 0.7): the female is inferred at the
+          same (x, z) but at the part's physical bottom Y.  stud4.dat references
+          are placed inside the brick, not at the mating surface, so we use
+          ``_get_bottom_y()`` for the correct Y.
+        - **Horizontal** males (SNOT): no inferred female is generated.  Instead,
+          anti-stud primitives with a horizontal normal are added directly as
+          female ports using their actual positions.
         """
         filename = f"{part_id}.dat"
-        males, females = self._collect_studs(filename, np.eye(4), 0)
+        males, raw_females = self._collect_studs(filename, np.eye(4), 0)
 
-        if not males and not females:
+        if not males:
             return []
 
-        # Determine Y level for anti-studs using the actual part bottom,
-        # not the stud4.dat reference position (which is always ~4 LDU
-        # regardless of whether the part is a plate or brick).
-        bottom_y = self._get_bottom_y(filename)
-        if males:
-            y_male = float(np.min([p[1] for p in males]))
-            if bottom_y > y_male + 1.0:
-                y_female = bottom_y
-            else:
-                # Fallback: assume plate height (8 LDU).
-                y_female = y_male + 8.0
-        else:
-            return []
-
-        # Deduplicate male positions (round to 0.5 LDU).
-        seen: set[tuple[float, float, float]] = set()
-        unique_males: list[np.ndarray] = []
-        for pos in males:
+        # Deduplicate males by rounded position.
+        seen_m: set[tuple[float, float, float]] = set()
+        unique_males: list[tuple[np.ndarray, np.ndarray]] = []
+        for pos, normal in males:
             key = (round(pos[0], 0), round(pos[1], 0), round(pos[2], 0))
-            if key not in seen:
-                seen.add(key)
-                unique_males.append(pos)
+            if key not in seen_m:
+                seen_m.add(key)
+                unique_males.append((pos, normal))
+
+        vertical_males = [(p, n) for p, n in unique_males if abs(n[1]) > 0.7]
+        horiz_males    = [(p, n) for p, n in unique_males if abs(n[1]) <= 0.7]
 
         ports: list[Port] = []
         port_id = 0
 
-        for pos in unique_males:
-            # Male port at stud position.
+        # --- Vertical ports (standard top/bottom connections) ---
+        if vertical_males:
+            bottom_y = self._get_bottom_y(filename)
+            y_male   = float(np.min([p[1] for p, _ in vertical_males]))
+            y_female = bottom_y if bottom_y > y_male + 1.0 else y_male + 8.0
+
+            for pos, normal in vertical_males:
+                ports.append(Port(
+                    port_id=port_id,
+                    local_position=pos,
+                    normal=normal,
+                    port_type="male",
+                ))
+                port_id += 1
+                ports.append(Port(
+                    port_id=port_id,
+                    local_position=np.array([pos[0], y_female, pos[2]]),
+                    normal=-normal,
+                    port_type="female",
+                ))
+                port_id += 1
+
+        # --- Horizontal (SNOT) male ports ---
+        for pos, normal in horiz_males:
             ports.append(Port(
                 port_id=port_id,
                 local_position=pos,
-                normal=np.array([0.0, -1.0, 0.0]),
+                normal=normal,
                 port_type="male",
             ))
             port_id += 1
 
-            # Inferred female port at same (x, z), bottom Y.
-            ports.append(Port(
-                port_id=port_id,
-                local_position=np.array([pos[0], y_female, pos[2]]),
-                normal=np.array([0.0, 1.0, 0.0]),
-                port_type="female",
-            ))
-            port_id += 1
+        # --- Horizontal female ports from detected anti-stud primitives ---
+        # Only add horizontal anti-studs; vertical ones sit inside the brick
+        # at the wrong Y and are already covered by the inferred vertical females.
+        seen_f: set[tuple[float, float, float]] = set()
+        for pos, normal in raw_females:
+            if abs(normal[1]) <= 0.7:
+                key = (round(pos[0], 0), round(pos[1], 0), round(pos[2], 0))
+                if key not in seen_f:
+                    seen_f.add(key)
+                    ports.append(Port(
+                        port_id=port_id,
+                        local_position=pos,
+                        normal=normal,
+                        port_type="female",
+                    ))
+                    port_id += 1
 
         return ports

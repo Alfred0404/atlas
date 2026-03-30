@@ -57,3 +57,4 @@ checkpoints/
 *.npy
 *.claude
 *.conn
+graph_sets/

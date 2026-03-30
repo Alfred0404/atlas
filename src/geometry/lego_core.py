@@ -9,6 +9,7 @@ from src.data.parser import RawBrickData
 from src.geometry.lego_part import PartDatabase
 from src.geometry.port import Port
 from src.geometry.snap import check_snap
+from src.geometry.snap import find_all_connections
 from src.geometry.spatial_hash import SpatialHash
 
 logger = logging.getLogger(__name__)
@@ -245,11 +246,46 @@ class LegoCore:
         assumed correct) and discovers all stud/anti-stud connections.
         """
         core = cls(part_db=part_db, cell_size=cell_size)
+
+        # 1) Insert all nodes first.
         for brick in bricks:
-            core.place_brick(
+            node_id = core._next_node_id
+            core._next_node_id += 1
+
+            lp = part_db.get_or_default(brick.brick_id)
+            core.spatial_hash.insert(node_id, lp.collision_boxes, brick.world_matrix)
+
+            core.nodes[node_id] = GraphNode(
+                node_id=node_id,
                 part_id=brick.brick_id,
                 color=brick.color,
                 world_matrix=brick.world_matrix,
-                validate=False,
             )
+            core._adjacency[node_id] = []
+            core._raw[node_id] = brick
+
+        # 2) Discover all connections with KDTree pre-filtering.
+        all_connections = find_all_connections(part_db, bricks)
+        for idx_a, idx_b, matched in all_connections:
+            node_a = int(idx_a)
+            node_b = int(idx_b)
+
+            raw_a = core._raw[node_a]
+            raw_b = core._raw[node_b]
+            rel_rot = raw_a.world_matrix[:3, :3].T @ raw_b.world_matrix[:3, :3]
+
+            for port_a, port_b in matched:
+                core.edges.append(
+                    GraphEdge(
+                        node_a=node_a,
+                        node_b=node_b,
+                        port_a_id=port_a.port_id,
+                        port_b_id=port_b.port_id,
+                        relative_rotation=rel_rot,
+                    )
+                )
+
+            if matched:
+                core._adjacency[node_a].append(node_b)
+                core._adjacency[node_b].append(node_a)
         return core
