@@ -125,6 +125,11 @@ class GraphTransformer(nn.Module):
         self.port_norm = nn.LayerNorm(d)
 
         # ---- 6 & 7. Classification heads -----------------------------------
+        # ctx_norm normalises g + soft_context before the classifier heads.
+        # Without it, ctx has uncontrolled magnitude (~25 LDU units) which makes
+        # logit variance >> 1 and all heads initialise much worse than random
+        # (observed: color 6.89 vs expected 4.74, self_port 5.83 vs 3.47).
+        self.ctx_norm = nn.LayerNorm(d)
         self.head_part = nn.Linear(d, cfg.n_parts)
         self.head_color = nn.Linear(d, cfg.n_colors)
         self.head_self_port = nn.Linear(d, cfg.max_port_id)
@@ -154,6 +159,7 @@ class GraphTransformer(nn.Module):
         batch,  # torch_geometric Batch object
         open_ports: Tensor,  # (B, P, port_feat_dim)  float32
         open_port_mask: Tensor,  # (B, P)  bool — True = valid
+        target_port_idx: Tensor | None = None,  # (B,) int64 — teacher-forced port index; None = inference
     ) -> dict[str, Tensor]:
         """
         Returns a dict with keys:
@@ -162,6 +168,11 @@ class GraphTransformer(nn.Module):
           color_logits     (B, n_colors)
           self_port_logits (B, max_port_id)
           rot_logits       (B, n_rot_steps)
+
+        During training pass ``target_port_idx`` (the ground-truth port) so the
+        classification heads receive exact local context rather than a noisy
+        soft-attention average over all 244 ports.  At inference leave it None
+        and the top-1 predicted port is used instead (greedy hard selection).
         """
         d = self.cfg.d_model
         device = self.part_emb.weight.device
@@ -223,16 +234,21 @@ class GraphTransformer(nn.Module):
         # Mask invalid (padded) ports
         port_logits = port_logits.masked_fill(~open_port_mask, float("-inf"))
 
-        # ---- 6. Soft context (differentiable during training) -------------
-        port_weights = F.softmax(port_logits, dim=-1)  # (B, P)
-        # Replace nan from all-masked rows (shouldn't happen in practice)
-        port_weights = torch.nan_to_num(port_weights, nan=0.0)
-        soft_context = torch.bmm(port_weights.unsqueeze(1), port_emb).squeeze(
-            1
-        )  # (B, d)
+        # ---- 6. Port context for classification heads ------------------------
+        # Training: use the ground-truth port embedding (teacher forcing).
+        #   → classification heads see exact local context, not a noisy average.
+        # Inference: use the top-1 predicted port (greedy hard selection).
+        if target_port_idx is not None:
+            # (B,) → (B, 1, 1) index → (B, 1, d) → (B, d)
+            idx = target_port_idx.clamp(min=0).view(B, 1, 1).expand(B, 1, port_emb.size(-1))
+            port_context = port_emb.gather(1, idx).squeeze(1)  # (B, d)
+        else:
+            best_port = port_logits.argmax(dim=-1)  # (B,)
+            idx = best_port.view(B, 1, 1).expand(B, 1, port_emb.size(-1))
+            port_context = port_emb.gather(1, idx).squeeze(1)  # (B, d)
 
         # ---- 7. Classification heads --------------------------------------
-        ctx = g + soft_context  # (B, d)
+        ctx = self.ctx_norm(g + port_context)  # (B, d)
 
         return dict(
             port_logits=port_logits,

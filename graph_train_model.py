@@ -44,6 +44,18 @@ def main() -> None:
     parser.add_argument("--device", default=None, help="Device (default: auto-detect)")
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        default=False,
+        help="Ignore existing checkpoint and train from scratch",
+    )
+    parser.add_argument(
+        "--live-plot",
+        action="store_true",
+        default=False,
+        help="Show a live loss plot (requires matplotlib)",
+    )
     args = parser.parse_args()
 
     logger = logging.getLogger(__name__)
@@ -84,8 +96,17 @@ def main() -> None:
     trainer = build_trainer(
         graph_dir=args.graph_dir,
         cfg=cfg,
+        live_plot=args.live_plot,
         **({"device": args.device} if args.device else {}),
     )
+
+    latest = Path(cfg.checkpoint_dir) / "latest.pt"
+    if not args.no_resume and latest.exists():
+        logger.info("Resuming from checkpoint: %s", latest)
+        trainer.load_checkpoint("latest.pt")
+    else:
+        logger.info("No checkpoint found — training from scratch")
+
     trainer.train()
 
 

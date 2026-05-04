@@ -20,6 +20,7 @@ import argparse
 import logging
 import multiprocessing as mp
 import re
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -158,6 +159,12 @@ def main() -> None:
         default=True,
         help="Save .npz without compression for faster write speed",
     )
+    parser.add_argument(
+        "--top-k-parts",
+        type=int,
+        default=500,
+        help="Keep only the top-k most frequent parts; 0 = keep all (default: 500)",
+    )
     args = parser.parse_args()
 
     mpd_dir = Path(args.mpd_dir)
@@ -179,21 +186,45 @@ def main() -> None:
         color_vocab = saved["color_vocab"]
     else:
         logger.info("Pass 1 — scanning vocabulary across %d files ...", len(files))
-        all_parts: set[str] = set()
+        part_freq: Counter = Counter()
         all_colors: set[int] = set()
         for path in tqdm(files, desc="Vocabulary scan", unit="file"):
             try:
                 p = MPDParser(str(path))
                 raw = p.parse(next(iter(p._submodels)))
                 for b in raw:
-                    all_parts.add(b.brick_id)
+                    part_freq[b.brick_id] += 1
                     all_colors.add(int(b.color))
             except Exception:
                 continue
 
-        part_vocab = {p: i + 1 for i, p in enumerate(sorted(all_parts))}
+        top_k = args.top_k_parts
+        total_unique = len(part_freq)
+        if top_k > 0 and top_k < total_unique:
+            selected_parts = [p for p, _ in part_freq.most_common(top_k)]
+            total_bricks = sum(part_freq.values())
+            covered = sum(part_freq[p] for p in selected_parts)
+            logger.info(
+                "Top-%d parts selected out of %d unique (covers %.1f%% of all brick placements)",
+                top_k,
+                total_unique,
+                100.0 * covered / total_bricks,
+            )
+        else:
+            selected_parts = list(part_freq.keys())
+            logger.info("Keeping all %d unique parts (no top-k filter)", total_unique)
+
+        part_vocab = {p: i + 1 for i, p in enumerate(sorted(selected_parts))}
         color_vocab = {c: i + 1 for i, c in enumerate(sorted(all_colors))}
-        torch.save({"part_vocab": part_vocab, "color_vocab": color_vocab}, vocab_path)
+        torch.save(
+            {
+                "part_vocab": part_vocab,
+                "color_vocab": color_vocab,
+                "part_freq": dict(part_freq),
+                "top_k_parts": top_k,
+            },
+            vocab_path,
+        )
         logger.info(
             "Vocabulary: %d parts, %d colors — saved to %s",
             len(part_vocab),

@@ -19,13 +19,14 @@ class ModelConfig:
     # Training
     batch_size: int = 8
     learning_rate: float = 3e-4
-    eos_weight: float = 3.0
+    eos_weight: float = 1.0
     weight_decay: float = 0.01
     max_epochs: int = 100
     grad_clip_norm: float = 1.0
     warmup_steps: int = 350
     checkpoint_dir: str = "./checkpoints"
     log_interval: int = 10
+    checkpoint_interval: int = 100
 
     # Generation
     max_gen_bricks: int = 400

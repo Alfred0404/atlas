@@ -3,6 +3,7 @@
 ## High Priority
 
 - [ ] Finir les corrections du code simplifier (claude.md)
+- [x] GraphTransformer pre-training fixes: auto-resume from latest.pt, intra-epoch checkpoint every 500 steps, early stopping (patience=10) (2026-05-04)
 - [ ] Sort/classify sets by theme using Rebrickable API (map set numbers to themes, enable theme-filtered or theme-conditioned training)
 - [x] Larger training dataset + train/val split with early stopping (graph_build_dataset.py, 2026-03-30)
 - [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)
@@ -16,6 +17,11 @@
 - [x] Analyser la distribution des positions dans le dataset tokenisé (confirmer le biais vers le centre)
 - [x] 🔴 hardcoded magic numbers — offsets now computed from constants ([config.py](src/config.py), 2026-03-23)
 - [x] Augmenter le poids du token EOS dans la loss (le modèle n'apprend pas à s'arrêter)
+- [x] Fix EOS collapse (eos_weight 3.0→1.0) and embedding init (N(0,1)→std=0.02) to fix loss stuck at ~15 and model generating only 1 brick (2026-03-31)
+- [x] Save checkpoint every 100 steps (2026-03-31)
+- [x] Fix GraphTransformer loss stuck at 15: add ctx_norm (LayerNorm on g+soft_context) — initial loss 30.11→27.21, uncontrolled ctx magnitude caused all classifier heads to initialise worse than random (2026-03-31)
+- [x] Add teacher-forced port context: pass target_port_idx to forward() during training so classification heads get exact local context instead of noisy soft-attention average — initial loss 27.21→25.36 (2026-03-31)
+- [x] Rebuild graph dataset with top-500 parts vocabulary (currently 6288 parts floors total loss at +8.75 nats; top-500 covers 92.8% of bricks, reduces floor to 6.21) — graph_build_dataset.py --top-k-parts 500, 2026-05-04)
 - [x] Pénalité de collision dans la loss (briques générées aux mêmes positions)
 - [x] Data augmentation (rotation globale 90°/180°/270°, mirroring X, permutation seedée) — `src/data/augmentation.py`, 8x multiplicateur géométrique (2026-03-24)
 - [x] Ajouter des docstrings à toutes les fonctions du projet (2026-03-26)

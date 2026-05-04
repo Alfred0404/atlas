@@ -155,6 +155,9 @@ class Trainer:
                     f"  step {self.global_step} — loss: {step_loss:.4f}, lr: {lr:.2e}"
                 )
 
+            if self.global_step % self.config.checkpoint_interval == 0:
+                self._save_checkpoint(epoch, step_loss)
+
         return total_loss / max(1, num_batches)
 
     @torch.no_grad()

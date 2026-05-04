@@ -1,5 +1,69 @@
 # CLAUDE.md
 
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+## 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project
@@ -112,6 +176,7 @@ LDraw `.dat` files are read from `C:/Users/Public/Documents/LDraw/parts/` with p
 - **Token offset mismatch**: The `parts` offset in `atlas_config.json` is dynamic (shifts when colors are added). The `.npy` files are tokenized with a specific offset. If the vocabulary changes after tokenization, all `.npy` files become invalid and must be regenerated. Always build the complete vocabulary (all colors, then all parts) BEFORE tokenizing any file. This is why `DatasetBuilder.process_dataset()` uses a 2-pass pipeline.
 - **Logit masking must be enabled during training** (`mask_logits=True`): Without it, the model distributes probability across the entire vocabulary (~3500+ tokens) instead of just the valid tokens for each field. At generation time, the mask then collapses this broad distribution to a handful of tokens, resulting in always generating the same output regardless of temperature. Training with masking focuses learning on valid tokens per field.
 - **VocabularyManager.save() must be called explicitly**: `add_part()`/`add_color()` only modify in-memory state. If you need the JSON on disk (e.g., before `tokenizer.load_vocabulary()`), call `vocab_manager.save()` first.
+- **Theme-constrained dataset beats a large mixed dataset**: Training on all LEGO themes simultaneously forces the model to fit several near-independent distributions at once (Star Wars, LOTR, City, classic sets share almost no parts, colors, or structural patterns). This inflates entropy on the `part_id` head artificially — the model has to predict across 500 parts when a single theme only uses ~100 consistently. Filtering to one coherent theme (e.g. City) reduces the effective `part_id` random baseline from log(500)≈6.2 nats to ~log(100)≈4.6 nats before the model learns anything. The loss in raw example count is not a problem: the 8x geometric augmentation (rotations + mirrors) still applies, and coherent examples are worth far more than diverse-but-unrelated ones. A model that generates plausible City sets is a much better milestone than one that weakly fits everything.
 
 when a task is complete, check it in the todo.md, and if it wasnt in the todo list, add it and check it
 

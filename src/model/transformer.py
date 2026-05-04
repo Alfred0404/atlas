@@ -20,6 +20,12 @@ class ATLASTransformer(nn.Module):
 
         self.embed_dropout = nn.Dropout(config.dropout)
 
+        # Scale embeddings to std=0.02 so initial logits are near-uniform over valid tokens.
+        # Default N(0,1) init causes logit std≈16 (with d_model=256), making initial loss
+        # ~60+ and trapping the model in bad local minima.
+        for emb in (self.token_embedding, self.position_embedding, self.field_embedding):
+            nn.init.normal_(emb.weight, mean=0.0, std=0.02)
+
         # Transformer (encoder used as decoder-only with causal mask)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=config.d_model,
