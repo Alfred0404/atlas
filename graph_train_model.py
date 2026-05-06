@@ -2,11 +2,11 @@
 
 Usage
 -----
-    python graph_train_model.py [--graph-dir PATH] [--device cuda|cpu]
+    python graph_train_model.py --theme "City" [--device cuda|cpu]
 
 Expects:
-  - dataset/graph_sets/*.npz  — produced by graph_build_dataset.py
-  - dataset/graph_vocab.pt    — vocabulary saved by graph_build_dataset.py
+  - dataset/graph_sets/<theme>/*.npz  — produced by graph_build_dataset.py --theme
+  - dataset/graph_vocab_<theme>.pt    — vocabulary saved by graph_build_dataset.py --theme
 """
 
 from __future__ import annotations
@@ -26,20 +26,18 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-VOCAB_PATH = Path("dataset/graph_vocab.pt")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the Graph Transformer model.")
+    parser.add_argument("--theme", required=True, help="Theme name (e.g. 'City'). Determines default graph-dir, vocab-path, and checkpoint-dir.")
     parser.add_argument(
         "--graph-dir",
-        default="dataset/graph_sets",
-        help="Directory containing .npz graph files (default: dataset/graph_sets)",
+        default=None,
+        help="Override graph dataset directory",
     )
     parser.add_argument(
         "--vocab-path",
-        default=str(VOCAB_PATH),
-        help="Vocabulary file saved by graph_build_dataset.py",
+        default=None,
+        help="Override vocabulary file path",
     )
     parser.add_argument("--device", default=None, help="Device (default: auto-detect)")
     parser.add_argument("--epochs", type=int, default=None)
@@ -59,12 +57,19 @@ def main() -> None:
     args = parser.parse_args()
 
     logger = logging.getLogger(__name__)
+
+    theme = args.theme
+    graph_dir = args.graph_dir or f"dataset/graph_sets/{theme}"
+    vocab_path = args.vocab_path or f"dataset/graph_vocab_{theme}.pt"
+    checkpoint_dir = f"./checkpoints/graph/{theme}"
+
     logger.info("Starting graph training entrypoint")
-    logger.info("graph_dir=%s", args.graph_dir)
+    logger.info("theme=%s  graph_dir=%s", theme, graph_dir)
 
     # Load vocabulary to set correct n_parts / n_colors
     cfg = GraphModelConfig()
-    vpath = Path(args.vocab_path)
+    cfg.checkpoint_dir = checkpoint_dir
+    vpath = Path(vocab_path)
     if vpath.exists():
         saved = torch.load(vpath, weights_only=True)
         cfg.n_parts = len(saved["part_vocab"]) + 1  # +1 for index-0 unknown
@@ -94,7 +99,7 @@ def main() -> None:
     )
 
     trainer = build_trainer(
-        graph_dir=args.graph_dir,
+        graph_dir=graph_dir,
         cfg=cfg,
         live_plot=args.live_plot,
         **({"device": args.device} if args.device else {}),

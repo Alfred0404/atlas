@@ -38,11 +38,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-MPD_DIR = Path("dataset/mpd_files")
-OUTPUT_DIR = Path("dataset/graph_sets")
 BLACKLIST = Path("dataset/technic_blacklist.txt")
-VOCAB_PATH = Path("dataset/graph_vocab.pt")
-DB_CACHE = Path("dataset/part_db_cache.pkl")
 
 
 # ---------------------------------------------------------------------------
@@ -133,11 +129,12 @@ def _process_one(args: tuple) -> tuple[str, bool]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build graph dataset from MPD files.")
-    parser.add_argument("--mpd-dir", default=str(MPD_DIR))
-    parser.add_argument("--output-dir", default=str(OUTPUT_DIR))
+    parser.add_argument("--theme", required=True, help="Theme name (e.g. 'City'). MPD files are read from dataset/mpd_files/<theme>/")
+    parser.add_argument("--mpd-dir", default=None, help="Override MPD input directory")
+    parser.add_argument("--output-dir", default=None, help="Override graph output directory")
     parser.add_argument("--blacklist", default=str(BLACKLIST))
-    parser.add_argument("--vocab-path", default=str(VOCAB_PATH))
-    parser.add_argument("--db-cache", default=str(DB_CACHE))
+    parser.add_argument("--vocab-path", default=None, help="Override vocabulary file path")
+    parser.add_argument("--db-cache", default=None, help="Override part DB cache path")
     parser.add_argument(
         "-j",
         "--jobs",
@@ -167,9 +164,16 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    mpd_dir = Path(args.mpd_dir)
-    output_dir = Path(args.output_dir)
+    theme = args.theme
+    mpd_dir = Path(args.mpd_dir) if args.mpd_dir else Path("dataset/mpd_files") / theme
+    output_dir = Path(args.output_dir) if args.output_dir else Path("dataset/graph_sets") / theme
+    vocab_path = Path(args.vocab_path) if args.vocab_path else Path(f"dataset/graph_vocab_{theme}.pt")
+    db_cache_path = Path(args.db_cache) if args.db_cache else Path(f"dataset/part_db_cache_{theme}.pkl")
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info("Theme: %s", theme)
+    logger.info("MPD dir: %s", mpd_dir)
+    logger.info("Output dir: %s", output_dir)
 
     blacklist = _load_blacklist(Path(args.blacklist))
     files = _filter_files(mpd_dir, blacklist)
@@ -178,7 +182,6 @@ def main() -> None:
         return
 
     # ---- Pass 1: vocabulary -------------------------------------------------
-    vocab_path = Path(args.vocab_path)
     if vocab_path.exists():
         logger.info("Loading existing vocabulary from %s", vocab_path)
         saved = torch.load(vocab_path, weights_only=True)
@@ -235,7 +238,6 @@ def main() -> None:
     logger.info("Vocabulary: %d parts, %d colors", len(part_vocab), len(color_vocab))
 
     # ---- Pass 1.5: warm PartDatabase cache ----------------------------------
-    db_cache_path = Path(args.db_cache)
     if not db_cache_path.exists():
         logger.info(
             "Pass 1.5 — pre-warming PartDatabase for %d unique parts ...",

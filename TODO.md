@@ -3,9 +3,8 @@
 ## High Priority
 
 - [ ] Finir les corrections du code simplifier (claude.md)
-- [x] GraphTransformer pre-training fixes: auto-resume from latest.pt, intra-epoch checkpoint every 500 steps, early stopping (patience=10) (2026-05-04)
-- [ ] Sort/classify sets by theme using Rebrickable API (map set numbers to themes, enable theme-filtered or theme-conditioned training)
-- [x] Larger training dataset + train/val split with early stopping (graph_build_dataset.py, 2026-03-30)
+- [x] Sort/classify sets by theme using Rebrickable API — `src/group_by_theme.py` moves MPD files into `dataset/mpd_files/<theme>/`; `graph_build_dataset.py --theme` and `graph_train_model.py --theme` route the full pipeline per-theme (2026-05-04)
+- [x] Migrate flat `dataset/graph_sets/*.npz` into per-theme subdirectories — `migrate_graph_sets.py` uses MPD dir structure as source of truth (2026-05-05)
 - [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)
 
 [.conn files documentation](https://forums.ldraw.org/thread-28521-post-59984.html#pid59984)
@@ -14,6 +13,8 @@
 <details>
     <summary style="font-style:bold">Done</summary>
 
+- [x] Larger training dataset + train/val split with early stopping (graph_build_dataset.py, 2026-03-30)
+- [x] GraphTransformer pre-training fixes: auto-resume from latest.pt, intra-epoch checkpoint every 500 steps, early stopping (patience=10) (2026-05-04)
 - [x] Analyser la distribution des positions dans le dataset tokenisé (confirmer le biais vers le centre)
 - [x] 🔴 hardcoded magic numbers — offsets now computed from constants ([config.py](src/config.py), 2026-03-23)
 - [x] Augmenter le poids du token EOS dans la loss (le modèle n'apprend pas à s'arrêter)

@@ -69,14 +69,22 @@ Le pipeline transforme des fichiers LDraw bruts en séquences tokenisées, puis 
 ATLAS/
 ├── atlas_config.json           # Vocabulaire et configuration spatiale
 ├── dataset/
-│   ├── mpd_files/              # Fichiers .mpd / .ldr bruts
+│   ├── mpd_files/              # Fichiers .mpd / .ldr organisés par thème
+│   │   ├── Town/               # Ex : Classic Town + sous-thèmes fusionnés
+│   │   ├── Star Wars/
+│   │   └── ...
+│   ├── graph_sets/             # Graphes d'assemblage (.npz) par thème
+│   │   └── Town/
 │   └── technic_blacklist.txt   # Sets Technic/Bionicle exclus
 ├── tokenized_sets/             # Séquences tokenisées (.npy)
 ├── checkpoints/                # Checkpoints du modèle
+│   └── graph/
+│       └── Town/               # Checkpoints par thème
 ├── generated_sets/             # Sorties .mpd générées
 ├── src/
 │   ├── config.py               # Constantes globales et chemins
 │   ├── main.py                 # Point d'entrée traitement du dataset
+│   ├── group_by_theme.py       # Classement des .mpd par thème via Rebrickable API
 │   ├── visualize_graph.py      # Visualisation des graphes d'assemblage
 │   ├── core/
 │   │   ├── tokenizer.py        # Conversion brique → tokens
@@ -171,37 +179,84 @@ Les fichiers `.dat` sont lus depuis la bibliothèque LDraw installée (`C:/Users
 
 ## Utilisation
 
-- Flux de travail typique :
-  1. Traiter le dataset : `python src/main.py`
-  2. Entraîner le modèle : `python -m src.model.train_model`
-  3. Générer un set : `python -m src.model.generate_model`
-  4. Visualiser le graphe : `python -m src.visualize_graph dataset/mpd_files/165-1.mpd`
+### Classement par thème (première utilisation)
+
+Les fichiers `.mpd` bruts doivent d'abord être classés par thème via l'API Rebrickable :
+
+```bash
+# Aperçu sans déplacer les fichiers
+python src/group_by_theme.py --dry-run
+
+# Classement effectif (--merge fusionne les sous-thèmes Town en un seul dossier)
+python src/group_by_theme.py --merge
+
+# Options
+#   --workers N   Nombre de workers parallèles pour les appels API (défaut : 5)
+#   --dry-run     Affiche les déplacements sans les exécuter
+#   --merge       Applique les fusions définies dans MERGE_GROUPS
+```
+
+Les groupes de fusion sont configurables dans `src/group_by_theme.py` (`MERGE_GROUPS`). Par défaut, les sous-thèmes Town (Classic Town, Traffic, Police, Airport, Fire, Harbor, Gas Station, Town Jr.) sont fusionnés dans `Town/`.
+
+### Entraînement par thème (Graph Transformer)
+
+```bash
+# 1. Construire le dataset de graphes pour un thème
+python graph_build_dataset.py --theme "Town"
+# → dataset/graph_sets/Town/*.npz
+# → dataset/graph_vocab_Town.pt
+
+# 2. Entraîner le modèle sur ce thème
+python graph_train_model.py --theme "Town"
+# → checkpoints/graph/Town/latest.pt, best.pt
+
+# Options communes
+#   --device cuda|cpu   Forcer le device
+#   --epochs N          Nombre d'époques
+#   --no-resume         Ignorer le checkpoint existant
+#   --live-plot         Affichage temps réel de la loss
+```
+
+### Flux séquentiel (encoder-decoder)
+
+```bash
+python src/main.py                   # Tokenisation du dataset
+python -m src.model.train_model      # Entraînement
+python -m src.model.generate_model   # Génération
+```
 
 Les fichiers `.mpd` générés sont sauvegardés dans `generated_sets/` et peuvent être ouverts dans n'importe quel viewer LDraw (Studio, LDView, etc.).
 
 ## Entraînement
 
-Le dataset contient ~1 600 sets LEGO officiels (après exclusion des sets Technic, Bionicle et Hero Factory via blacklist). Avec l'augmentation de données (rotations + miroir), le dataset effectif est de ~10 700 séquences.
+### Choix du thème
 
-Le pipeline de traitement utilise un système 2 passes :
-1. **Pass 1** : parsing de tous les fichiers + construction du vocabulaire complet
-2. **Pass 2** : tokenisation avec le vocabulaire figé (résultats du pass 1 cachés en mémoire)
+L'entraînement sur le dataset complet (~2 200 sets, tous thèmes confondus) fait plafonner la loss à ~15 nats : le modèle doit simultanément apprendre des distributions quasi-indépendantes (Star Wars, City, Creator…) qui partagent très peu de pièces ou de patterns structurels. Entraîner sur un thème unique cohérent est donc préférable.
+
+Le thème **Town** (Classic Town + sous-thèmes fusionnés) est le plus représenté avec ~370 fichiers et offre la meilleure cohérence structurelle (bâtiments, véhicules, infrastructure urbaine).
+
+### Pipeline Graph Transformer
+
+Le pipeline Graph Transformer utilise 3 passes :
+1. **Pass 1** : scan du vocabulaire (parts + couleurs) sur tous les fichiers du thème
+2. **Pass 1.5** : préchauffage du cache `PartDatabase` pour toutes les pièces connues
+3. **Pass 2** : construction parallèle des graphes `.npz` (N workers, `--jobs`)
 
 ### Résultats Actuels
 
 #### ✅ Pipeline fonctionnel
 
-Le pipeline complet fonctionne de bout en bout : parsing, tokenisation, entraînement et génération de fichiers `.mpd` valides.
+Le pipeline complet fonctionne de bout en bout : classement par thème, construction des graphes, entraînement et génération de fichiers `.mpd` valides.
 
 #### ⚠️ Qualité de génération à améliorer
 
-Les modèles générés ne sont pas encore réalistes — le modèle a tendance à répéter les mêmes positions.
+Les modèles générés ne sont pas encore réalistes — la qualité de génération dépend fortement du thème choisi et du nombre d'epochs.
 
-**Causes probables identifiées :**
+**Pistes d'amélioration :**
 
-1. Modèle sous-entraîné
-2. Pas de split train/val ni d'early stopping
-3. Hyperparamètres à affiner (température, learning rate)
+1. Augmenter le dataset via scraping (OMR)
+2. Affiner les hyperparamètres par thème
+3. Génération conditionnée par le thème (token de thème en entrée)
 
 ## Contribuer
 
