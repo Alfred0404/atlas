@@ -68,7 +68,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-ATLAS (Autoregressive Transformer Lego Assembly Synthesis) trains a GPT-style decoder-only transformer to generate novel LEGO models. It implements a full ML pipeline: raw LDraw .mpd files → tokenized sequences → transformer training → generation → .mpd export.
+ATLAS (Autoregressive Transformer Lego Assembly Synthesis) — now exploring a **diffusion architecture** (branch `test-diffusion`). Each LEGO set is represented as a fixed-size matrix `(N, 6)` of bricks `[x, y, z, rot_id, brick_id, color_id]`. A DiT (Diffusion Transformer) learns to denoise random positions back into coherent LEGO assemblies.
 
 ## Commands
 
@@ -79,27 +79,20 @@ pip install -r requirements.txt
 # GPU support (optional, CUDA 12.4)
 pip install torch --index-url https://download.pytorch.org/whl/cu124
 
-# Process dataset (parse .mpd files → tokenized .npy sequences)
-python src/main.py
+# Step 1 — Build per-theme dataset (parse MPD → (N,6) tensors + vocab)
+python diffusion_build_dataset.py --theme City
 
-# Train the model
-python -m src.model.train_model
+# Step 2 — Train the diffusion model
+python diffusion_train_model.py --theme City
 
-# Generate a new LEGO set
-python -m src.model.generate_model
+# Step 3 — Generate new LEGO sets
+python diffusion_generate_model.py --theme City --checkpoint checkpoints/diffusion/City/latest.pt
+
+# Organize MPD files by theme (Rebrickable API)
+python src/group_by_theme.py --merge
 
 # Run all tests
 pytest
-
-# Run a single test file
-pytest tests/test_vocabulary.py
-
-# Run a single test
-pytest tests/test_vocabulary.py::TestVocabularyManager::test_add_part
-
-# Visualize assembly graph of a LEGO set
-python -m src.visualize_graph dataset/mpd_files/165-1.mpd
-python -m src.visualize_graph dataset/mpd_files/165-1.mpd --3d
 ```
 
 ## Architecture
@@ -107,59 +100,46 @@ python -m src.visualize_graph dataset/mpd_files/165-1.mpd --3d
 ### Data Pipeline
 
 ```
-dataset/mpd_files/*.mpd → MPDParser → DatasetBuilder → Tokenizer → tokenized_sets/*.npy
+dataset/mpd_files/<theme>/*.mpd → MPDParser → (N, 6) tensors → dataset/diffusion_sets/<theme>/*.pt
 ```
 
-1. **MPDParser** (`src/data/parser.py`) reads LDraw .mpd files, flattens hierarchical submodels into world-space brick placements
-2. **DatasetBuilder** (`src/data/builder.py`) normalizes bricks (center at origin, deterministic sort by Y→X→Z)
-3. **Tokenizer** (`src/core/tokenizer.py`) converts each brick into a fixed **6-token sequence**: `[part_id, x_bin, y_bin, z_bin, rotation, color]`
-4. **VocabularyManager** (`src/core/vocabulary.py`) manages dynamic part/color mappings, persisted in `atlas_config.json`
+1. **MPDParser** (`src/data/parser.py`) reads LDraw .mpd files, flattens hierarchical submodels into world-space brick placements, sorts Y↑→X→Z
+2. **diffusion_build_dataset.py** builds per-theme vocabulary (part/color → int, starting at 1; 0 = UNK/PAD), computes N (95th percentile brick count), normalizes positions (center + divide by global_scale), pads sets to length N
 
-### Token Layout
+### Representation
 
-Token ranges are defined by offsets in `src/config.py`:
-- Special tokens (PAD=0, SOS=1, EOS=2, UNK=3) at indices 0–3
-- Rotations at 4–27 (24 discrete orthogonal orientations)
-- Positions at 28–3027 (binned at 2 LDU precision, range ±1000)
-- Colors at 3028–3127
-- Parts at 3128+
+Each brick: `[x, y, z, rot_id, brick_id, color_id]`
+- `x, y, z`: continuous float32, normalized (divided by `global_scale` from vocab)
+- `rot_id`: 0–23, index into the 24 octahedral rotation matrices
+- `brick_id`, `color_id`: 1-indexed integers (0 = UNK/PAD, ignored in loss)
+
+Padding: sets shorter than N are zero-padded; `padding_mask` (bool tensor) marks padded bricks.
 
 ### Model
 
-**ATLASTransformer** (`src/model/transformer.py`): ~7M parameter decoder-only transformer.
-- Embeddings = token embedding + absolute position embedding + intra-brick field embedding (7 fields: SOS + 6 per brick)
-- 6 layers, 8 heads, 256-dim, 1024-dim FFN, pre-norm (`norm_first=True`)
-- Causal attention mask; **field-based logit masking** during both training and inference constrains outputs to valid token ranges per field position
+**DiT** (`src/model/dit.py`): Diffusion Transformer.
+- Position embedding: MLP(3 → d_model)
+- Timestep embedding: sinusoidal → MLP(d → d)
+- K transformer blocks (pre-norm self-attention with padding mask, GELU FFN)
+- 4 output heads: noise_pred (3), part_logits (n_parts), color_logits (n_colors), rot_logits (24)
 
-**Trainer** (`src/model/train.py`): AdamW (lr=3e-4), linear warmup (500 steps) → cosine annealing, gradient clipping at 1.0. Logit masking is enabled during training (`mask_logits=True`).
+**DDPM** (`src/model/ddpm.py`): cosine noise schedule, T=500 steps.
+- Forward: `q_sample(x0, t)` → `(x_t, noise)`
+- Reverse: `p_sample(model, x_t, t)` → `x_{t-1}`, `sample()` → full generation
 
-**Generator** (`src/model/generate.py`): Temperature (0.8) + top-k (50) sampling with field-aware logit masking. Outputs .mpd files via `src/file_io/mpd_writer.py`.
+**Training** (`src/model/diffusion_train.py`): AdamW (lr=3e-4) + cosine annealing.
+- Continuous loss: MSE on predicted noise, non-padded bricks only
+- Discrete losses: CrossEntropy (ignore_index=-100 for padding) on part/color/rot at every timestep
+- Grad clipping at 1.0
 
-### Geometry Engine (LegoCore)
-
-Converts .mpd files into assembly graphs `G=(V, E)` where V=bricks and E=stud/anti-stud connections.
-
-```
-.mpd → MPDParser → list[RawBrickData] → LegoCore.from_raw_bricks() → G=(V, E)
-```
-
-- **ConnParser** (`src/geometry/conn_parser.py`) parses LDraw `.dat` files recursively to extract stud (male) and anti-stud (female) positions. Uses `_get_bottom_y()` to determine actual part height from geometry vertices (not from stud4.dat reference position).
-- **Port** (`src/geometry/port.py`) — frozen dataclass representing a connection point (position, normal, male/female type).
-- **LegoPart** / **PartDatabase** (`src/geometry/lego_part.py`) — combines ports + collision boxes per part, with lazy-loading cache.
-- **snap.py** (`src/geometry/snap.py`) — `check_snap()` matches male/female ports between two bricks (KDTree, pos_tol=2.0 LDU, normal anti-alignment). `find_all_connections()` pre-filters with brick-level KDTree (proximity_threshold=80 LDU).
-- **SpatialHash** (`src/geometry/spatial_hash.py`) — voxel grid (8 LDU cells) for O(1) collision detection.
-- **LegoCore** (`src/geometry/lego_core.py`) — main engine: `place_brick()`, `remove_brick()`, `validate_placement()`, `from_raw_bricks()`, `get_graph()`.
-- **Visualizer** (`src/visualize_graph.py`) — 2D (spring + spatial top-down) and 3D graph plots, colored by node degree.
-
-LDraw `.dat` files are read from `C:/Users/Public/Documents/LDraw/parts/` with primitives in `../p/`.
+**Generation** (`src/model/diffusion_generate.py`): full reverse diffusion → snap to LEGO grid (20 LDU x/z, 8 LDU y) → argmax discrete heads → write MPD.
 
 ### Key Directories
 
-- `dataset/mpd_files/` — raw LDraw .mpd source files
-- `tokenized_sets/` — processed .npy tensor files
-- `checkpoints/` — saved model checkpoints
+- `dataset/mpd_files/<theme>/` — raw LDraw .mpd source files, organized by theme
+- `dataset/diffusion_sets/<theme>/` — per-set .pt tensors + `vocab_<theme>.pt`
+- `checkpoints/diffusion/<theme>/` — model checkpoints
 - `generated_sets/` — generated .mpd outputs
-- `atlas_config.json` — vocabulary state (parts, colors, offsets); rebuilt by `src/main.py`
 
 ## Known Issues / TODOs
 

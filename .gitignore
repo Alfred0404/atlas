@@ -55,6 +55,7 @@ checkpoints/
 *.ldr
 *.dat
 *.npy
+*.pt
 *.claude
 *.conn
 graph_sets/

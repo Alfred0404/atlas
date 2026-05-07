@@ -1,10 +1,13 @@
 # Todo
 
-## High Priority
+## High Priority — Diffusion (branch: test-diffusion)
 
-- [ ] Finir les corrections du code simplifier (claude.md)
-- [x] Sort/classify sets by theme using Rebrickable API — `src/group_by_theme.py` moves MPD files into `dataset/mpd_files/<theme>/`; `graph_build_dataset.py --theme` and `graph_train_model.py --theme` route the full pipeline per-theme (2026-05-04)
-- [x] Migrate flat `dataset/graph_sets/*.npz` into per-theme subdirectories — `migrate_graph_sets.py` uses MPD dir structure as source of truth (2026-05-05)
+- [x] Pivot vers architecture diffusion (DiT + DDPM) — suppression graph/séquence, nouveau pipeline (2026-05-06)
+- [ ] Valider le pipeline : `diffusion_build_dataset.py --theme City` → tenseurs (N,6) OK
+- [ ] Overfit sur 10 sets → vérifier que la loss descend proprement
+- [ ] Générer un set → vérifier que les coordonnées tombent à ±5 LDU de la grille LEGO
+- [ ] Augmentation géométrique (rotations Y 90°/180°/270° + miroir X) dans le dataset
+- [ ] Conditionnement par thème (theme embedding injecté dans le DiT)
 - [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)
 
 [.conn files documentation](https://forums.ldraw.org/thread-28521-post-59984.html#pid59984)
