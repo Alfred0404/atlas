@@ -1,0 +1,222 @@
+<svg viewBox="0 0 960 970" xmlns="http://www.w3.org/2000/svg" width="960" height="970">
+  <title>DiT — Diffusion Transformer Architecture</title>
+  <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap'); text { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }</style>
+    <filter id="shadow-sm" x="-5%" y="-5%" width="115%" height="125%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000018"/>
+    </filter>
+    <filter id="shadow-md" x="-8%" y="-8%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#00000020"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#94A3B8"/>
+    </marker>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#E2E8F0" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="970" fill="#FFFFFF"/>
+  <rect width="960" height="970" fill="url(#grid)" opacity="0.6"/>
+
+  <!-- Title -->
+  <text x="40" y="44" font-size="18" font-weight="700" fill="#1E293B">DiT — Diffusion Transformer</text>
+  <text x="40" y="64" font-size="12" font-weight="400" fill="#64748B">LEGO Assembly Generation · ATLAS Project</text>
+  <line x1="40" y1="72" x2="360" y2="72" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- ════════════════════════════════
+       pos_embed group  x=50 y=88 w=340 h=200
+  ════════════════════════════════ -->
+  <rect x="50" y="88" width="340" height="200" rx="14" fill="#F59E0B1A" stroke="#F59E0B50" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <rect x="62" y="76" width="180" height="24" rx="12" fill="#F59E0B"/>
+  <text x="152" y="92" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">Position Embedding</text>
+
+  <!-- input amber box -->
+  <rect x="90" y="108" width="260" height="40" rx="10" fill="#FEF3C7" stroke="#F59E0B" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="220" y="124" font-size="11" font-weight="600" fill="#92400E" text-anchor="middle">(B, N, 3)</text>
+  <text x="220" y="140" font-size="10" font-weight="400" fill="#92400E" text-anchor="middle">noisy brick positions</text>
+  <line x1="220" y1="148" x2="220" y2="164" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Linear(3→d) -->
+  <rect x="90" y="164" width="260" height="28" rx="7" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="220" y="182" font-size="10" font-weight="500" fill="#475569" text-anchor="middle">Linear(3 → d_model)</text>
+  <line x1="220" y1="192" x2="220" y2="206" stroke="#CBD5E1" stroke-width="1.5"/>
+
+  <!-- GELU pill -->
+  <rect x="178" y="206" width="84" height="20" rx="10" fill="#E2E8F0"/>
+  <text x="220" y="220" font-size="10" font-weight="600" fill="#475569" text-anchor="middle">GELU</text>
+  <line x1="220" y1="226" x2="220" y2="240" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Linear(d→d) -->
+  <rect x="90" y="240" width="260" height="28" rx="7" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="220" y="258" font-size="10" font-weight="500" fill="#475569" text-anchor="middle">Linear(d_model → d_model)</text>
+
+  <!-- ════════════════════════════════
+       time_embed group  x=570 y=88 w=340 h=200
+  ════════════════════════════════ -->
+  <rect x="570" y="88" width="340" height="200" rx="14" fill="#06B6D41A" stroke="#06B6D450" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <rect x="582" y="76" width="190" height="24" rx="12" fill="#06B6D4"/>
+  <text x="677" y="92" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">Timestep Embedding</text>
+
+  <!-- input cyan box -->
+  <rect x="610" y="108" width="260" height="40" rx="10" fill="#ECFEFF" stroke="#06B6D4" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="740" y="124" font-size="11" font-weight="600" fill="#164E63" text-anchor="middle">(B,) timesteps</text>
+  <text x="740" y="140" font-size="10" font-weight="400" fill="#0E7490" text-anchor="middle">timestep indices</text>
+  <line x1="740" y1="148" x2="740" y2="164" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Sinusoidal -->
+  <rect x="610" y="164" width="260" height="28" rx="7" fill="#ECFEFF" stroke="#06B6D4" stroke-width="1"/>
+  <text x="740" y="182" font-size="10" font-weight="500" fill="#0E7490" text-anchor="middle">Sinusoidal Embedding(d_model)</text>
+  <line x1="740" y1="192" x2="740" y2="206" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Linear→GELU→Linear -->
+  <rect x="610" y="206" width="260" height="44" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="740" y="224" font-size="10" font-weight="500" fill="#475569" text-anchor="middle">Linear(d→d) → GELU</text>
+  <text x="740" y="240" font-size="10" font-weight="500" fill="#475569" text-anchor="middle">→ Linear(d→d)</text>
+
+  <!-- ════════════════════════════════
+       Merge ⊕ at cx=480 cy=348
+       pos path: from (220,268) → (480,330)
+       time path: from (740,250) → (480,330)
+  ════════════════════════════════ -->
+  <path d="M 220,268 L 220,308 Q 220,328 240,328 L 460,328 Q 480,328 480,330"
+        fill="none" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M 740,250 L 740,308 Q 740,328 720,328 L 500,328 Q 480,328 480,330"
+        fill="none" stroke="#06B6D4" stroke-width="1.5" stroke-linecap="round"/>
+
+  <circle cx="480" cy="348" r="18" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="480" y="354" font-size="15" font-weight="600" fill="#475569" text-anchor="middle">⊕</text>
+  <text x="480" y="376" font-size="9" font-weight="400" fill="#94A3B8" text-anchor="middle">broadcast add</text>
+
+  <!-- merge → DiTBlock -->
+  <line x1="480" y1="366" x2="480" y2="390" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="494" y="381" font-size="9" fill="#64748B">h: (B, N, d_model)</text>
+
+  <!-- ════════════════════════════════
+       DiTBlock ×6   x=190 y=392 w=580 h=334  bot=726
+  ════════════════════════════════ -->
+  <rect x="190" y="392" width="580" height="334" rx="14" fill="#6366F11A" stroke="#6366F140" stroke-width="1.5" stroke-dasharray="7,4" filter="url(#shadow-md)"/>
+  <rect x="202" y="380" width="92" height="24" rx="12" fill="#6366F1"/>
+  <text x="248" y="396" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">DiTBlock</text>
+  <rect x="720" y="380" width="42" height="24" rx="12" fill="#1E293B"/>
+  <text x="741" y="396" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">×6</text>
+
+  <!-- main column cx=480, blocks x=320 w=320 -->
+
+  <!-- LayerNorm 1  y=412 h=26 bot=438 -->
+  <rect x="320" y="412" width="320" height="26" rx="6" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="429" font-size="10" font-weight="500" fill="#64748B" text-anchor="middle">Layer Norm</text>
+  <line x1="480" y1="438" x2="480" y2="454" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Multi-Head Self-Attention  y=454 h=72 bot=526 -->
+  <rect x="320" y="454" width="320" height="72" rx="10" fill="#EEF2FF" stroke="#6366F1" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="480" y="476" font-size="13" font-weight="600" fill="#3730A3" text-anchor="middle">Multi-Head Self-Attention</text>
+  <text x="480" y="492" font-size="10" font-weight="400" fill="#6366F1" text-anchor="middle">8 heads · key_padding_mask</text>
+  <text x="402" y="516" font-size="9" font-weight="700" fill="#6366F1" text-anchor="middle">Q</text>
+  <text x="480" y="516" font-size="9" font-weight="700" fill="#6366F1" text-anchor="middle">K</text>
+  <text x="558" y="516" font-size="9" font-weight="700" fill="#6366F1" text-anchor="middle">V</text>
+
+  <line x1="480" y1="526" x2="480" y2="546" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="652" y="538" font-size="9" font-weight="400" fill="#94A3B8">Dropout + Add</text>
+
+  <!-- Residual 1: x=320,y=425 → x=252,y=425 → x=252,y=536 → x=320,y=536 -->
+  <path d="M 320,425 L 252,425 L 252,536 L 320,536"
+        fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="5,3" stroke-linecap="round"/>
+  <text x="248" y="484" font-size="8" fill="#94A3B8" text-anchor="end">residual</text>
+
+  <!-- LayerNorm 2  y=546 h=26 bot=572 -->
+  <rect x="320" y="546" width="320" height="26" rx="6" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="480" y="563" font-size="10" font-weight="500" fill="#64748B" text-anchor="middle">Layer Norm</text>
+  <line x1="480" y1="572" x2="480" y2="588" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- FFN  y=588 h=72 bot=660 -->
+  <rect x="320" y="588" width="320" height="72" rx="10" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="480" y="610" font-size="13" font-weight="600" fill="#5B21B6" text-anchor="middle">Feed-Forward Network</text>
+  <text x="480" y="626" font-size="10" font-weight="400" fill="#7C3AED" text-anchor="middle">Linear(d→1024) → GELU → Linear(1024→d)</text>
+  <text x="480" y="648" font-size="9" font-weight="400" fill="#A78BFA" text-anchor="middle">d_ff = 1024</text>
+
+  <line x1="480" y1="660" x2="480" y2="680" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="652" y="672" font-size="9" font-weight="400" fill="#94A3B8">Dropout + Add</text>
+
+  <!-- Residual 2: x=320,y=559 → x=252,y=559 → x=252,y=670 → x=320,y=670 -->
+  <path d="M 320,559 L 252,559 L 252,670 L 320,670"
+        fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="5,3" stroke-linecap="round"/>
+  <text x="248" y="618" font-size="8" fill="#94A3B8" text-anchor="end">residual</text>
+
+  <!-- out of group -->
+  <line x1="480" y1="726" x2="480" y2="746" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ════════════════════════════════
+       Final LayerNorm  y=746 h=26 bot=772
+  ════════════════════════════════ -->
+  <rect x="320" y="746" width="320" height="26" rx="6" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="480" y="763" font-size="10" font-weight="600" fill="#475569" text-anchor="middle">Layer Norm  (final)</text>
+
+  <!-- ════════════════════════════════
+       Output heads fan-out
+       bar at y=790, heads at y=808 h=80
+       cx: 136, 362, 588, 824
+  ════════════════════════════════ -->
+  <line x1="480" y1="772" x2="480" y2="790" stroke="#CBD5E1" stroke-width="1.5"/>
+  <line x1="136" y1="790" x2="824" y2="790" stroke="#CBD5E1" stroke-width="1.5"/>
+  <line x1="136" y1="790" x2="136" y2="808" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="362" y1="790" x2="362" y2="808" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="588" y1="790" x2="588" y2="808" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="824" y1="790" x2="824" y2="808" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- head_noise  x=36 cx=136 w=200 h=82 — rose -->
+  <rect x="36" y="808" width="200" height="82" rx="10" fill="#FFF1F2" stroke="#F43F5E" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="136" y="830" font-size="11" font-weight="700" fill="#9F1239" text-anchor="middle">head_noise</text>
+  <text x="136" y="847" font-size="10" font-weight="400" fill="#BE123C" text-anchor="middle">Linear(d → 3)</text>
+  <text x="136" y="862" font-size="10" font-weight="400" fill="#BE123C" text-anchor="middle">noise_pred  (B, N, 3)</text>
+  <rect x="68" y="870" width="136" height="16" rx="8" fill="#F43F5E"/>
+  <text x="136" y="881" font-size="9" font-weight="600" fill="#FFFFFF" text-anchor="middle">★  zero-initialized</text>
+
+  <!-- head_part  x=262 cx=362 w=200 h=82 — emerald -->
+  <rect x="262" y="808" width="200" height="82" rx="10" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="362" y="830" font-size="11" font-weight="700" fill="#065F46" text-anchor="middle">head_part</text>
+  <text x="362" y="847" font-size="10" font-weight="400" fill="#059669" text-anchor="middle">Linear(d → n_parts)</text>
+  <text x="362" y="862" font-size="10" font-weight="400" fill="#059669" text-anchor="middle">part_logits  (B, N, n_parts)</text>
+  <rect x="294" y="870" width="136" height="16" rx="8" fill="#ECFDF5" stroke="#10B981" stroke-width="0.5"/>
+  <text x="362" y="881" font-size="9" font-weight="500" fill="#065F46" text-anchor="middle">brick type  ·  CrossEntropy</text>
+
+  <!-- head_color  x=488 cx=588 w=200 h=82 — emerald -->
+  <rect x="488" y="808" width="200" height="82" rx="10" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="588" y="830" font-size="11" font-weight="700" fill="#065F46" text-anchor="middle">head_color</text>
+  <text x="588" y="847" font-size="10" font-weight="400" fill="#059669" text-anchor="middle">Linear(d → n_colors)</text>
+  <text x="588" y="862" font-size="10" font-weight="400" fill="#059669" text-anchor="middle">color_logits  (B, N, n_colors)</text>
+  <rect x="520" y="870" width="136" height="16" rx="8" fill="#ECFDF5" stroke="#10B981" stroke-width="0.5"/>
+  <text x="588" y="881" font-size="9" font-weight="500" fill="#065F46" text-anchor="middle">color  ·  CrossEntropy</text>
+
+  <!-- head_rot  x=724 cx=824 w=200 h=82 — amber -->
+  <rect x="724" y="808" width="200" height="82" rx="10" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="824" y="830" font-size="11" font-weight="700" fill="#92400E" text-anchor="middle">head_rot</text>
+  <text x="824" y="847" font-size="10" font-weight="400" fill="#B45309" text-anchor="middle">Linear(d → 24)</text>
+  <text x="824" y="862" font-size="10" font-weight="400" fill="#B45309" text-anchor="middle">rot_logits  (B, N, 24)</text>
+  <rect x="756" y="870" width="136" height="16" rx="8" fill="#FFFBEB" stroke="#F59E0B" stroke-width="0.5"/>
+  <text x="824" y="881" font-size="9" font-weight="500" fill="#92400E" text-anchor="middle">rotation  ·  CrossEntropy</text>
+
+  <!-- ════════════════════════════════
+       Legend  y=910
+  ════════════════════════════════ -->
+  <g transform="translate(36, 910)">
+    <rect width="888" height="52" rx="10" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1" filter="url(#shadow-sm)"/>
+    <text x="16" y="18" font-size="10" font-weight="600" fill="#64748B">LEGEND</text>
+    <rect x="16" y="28" width="12" height="12" rx="3" fill="#EEF2FF" stroke="#6366F1" stroke-width="1"/>
+    <text x="34" y="39" font-size="10" fill="#1E293B">Self-Attention</text>
+    <rect x="136" y="28" width="12" height="12" rx="3" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="1"/>
+    <text x="154" y="39" font-size="10" fill="#1E293B">Feed-Forward</text>
+    <rect x="256" y="28" width="12" height="12" rx="3" fill="#FEF3C7" stroke="#F59E0B" stroke-width="1"/>
+    <text x="274" y="39" font-size="10" fill="#1E293B">Position input</text>
+    <rect x="376" y="28" width="12" height="12" rx="3" fill="#ECFEFF" stroke="#06B6D4" stroke-width="1"/>
+    <text x="394" y="39" font-size="10" fill="#1E293B">Timestep input</text>
+    <rect x="496" y="28" width="12" height="12" rx="3" fill="#ECFDF5" stroke="#10B981" stroke-width="1"/>
+    <text x="514" y="39" font-size="10" fill="#1E293B">Discrete heads</text>
+    <rect x="616" y="28" width="12" height="12" rx="3" fill="#FFF1F2" stroke="#F43F5E" stroke-width="1"/>
+    <text x="634" y="39" font-size="10" fill="#1E293B">Noise head (zero-init)</text>
+    <line x1="774" y1="32" x2="794" y2="32" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4,2"/>
+    <text x="800" y="36" font-size="10" fill="#1E293B">Residual</text>
+  </g>
+
+</svg>

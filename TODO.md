@@ -6,7 +6,8 @@
 - [ ] Valider le pipeline : `diffusion_build_dataset.py --theme City` → tenseurs (N,6) OK
 - [ ] Overfit sur 10 sets → vérifier que la loss descend proprement
 - [ ] Générer un set → vérifier que les coordonnées tombent à ±5 LDU de la grille LEGO
-- [ ] Augmentation géométrique (rotations Y 90°/180°/270° + miroir X) dans le dataset
+- [x] Augmentation géométrique (rotations Y 90°/180°/270° + miroir X) dans le dataset — diffusion_build_dataset.py, 8× multiplier via _AUG_TRANSFORMS + _ROT_REMAP table (2026-05-09)
+- [x] Fix diffusion learning issues: discrete loss gate (80% gradient zeroed), missing LR warmup, UNK bricks in CE loss, no val split, checkpoint-at-step-0 (2026-05-09)
 - [ ] Conditionnement par thème (theme embedding injecté dans le DiT)
 - [ ] Dédupliquer le dataset (ex: `10129 UCS Snowspeeder.npy` et `10129 - Ultimate Collector's Rebel Snowspeeder.npy`)
 

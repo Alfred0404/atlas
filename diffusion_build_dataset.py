@@ -20,6 +20,31 @@ logger = setup_logging()
 
 _ROTATION_MATRICES = generate_chiral_rotation_matrices()
 
+# --- Geometric augmentation ---
+# 8 transforms: 4 Y-axis rotations × 2 mirror states (identity + mirror X)
+def _y_rot(deg: float) -> np.ndarray:
+    r = np.radians(deg)
+    c, s = np.cos(r), np.sin(r)
+    return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+
+_MIRROR_X = np.diag([-1.0, 1.0, 1.0])
+_AUG_TRANSFORMS: list[np.ndarray] = (
+    [_y_rot(d) for d in (0, 90, 180, 270)]
+    + [_MIRROR_X @ _y_rot(d) for d in (0, 90, 180, 270)]
+)
+# Precompute rot_id remap table: _ROT_REMAP[aug_idx, orig_id] = new_id
+# Shape (8, 24) — computed once at import time, O(1) per brick at save time.
+_ROT_REMAP: np.ndarray = np.array(
+    [
+        [
+            find_closest_rotation_matrix(aug @ rot, _ROTATION_MATRICES)
+            for rot in _ROTATION_MATRICES
+        ]
+        for aug in _AUG_TRANSFORMS
+    ],
+    dtype=np.int64,
+)
+
 
 def _get_model_name(mpd_path: Path) -> str:
     with open(mpd_path, "r") as f:
@@ -140,40 +165,60 @@ def main():
     torch.save(vocab, vocab_path)
     logger.info("Saved vocab to %s", vocab_path)
 
-    # Pass 2: normalize, pad and save per-set tensors
+    # Clean existing set tensors so augmented and old unaugmented files don't coexist
+    removed = sum(1 for f in out_dir.glob("*.pt") if f.name != vocab_path.name)
+    for f in out_dir.glob("*.pt"):
+        if f.name != vocab_path.name:
+            f.unlink()
+    if removed:
+        logger.info("Removed %d stale .pt files from %s", removed, out_dir)
+
+    # Pass 2: normalize, pad, augment (×8) and save per-set tensors
     saved = 0
     for mpd_path, raw in zip(valid_files, raw_tensors):
         n = min(raw["positions"].shape[0], max_bricks)
-        positions = (raw["positions"][:n] / global_scale).float()
-        rot_ids = raw["rot_ids"][:n]
-        part_ids = raw["part_ids"][:n]
-        color_ids = raw["color_ids"][:n]
+
+        # Non-padded base arrays (numpy for transform math)
+        pos_np = (raw["positions"][:n] / global_scale).numpy().astype(np.float32)  # (n, 3)
+        rot_np = raw["rot_ids"][:n].numpy()                                         # (n,) int64
 
         pad = max_bricks - n
         padding_mask = torch.zeros(max_bricks, dtype=torch.bool)
         padding_mask[n:] = True
 
+        # Pad part/color once — they are augmentation-invariant
+        part_ids = raw["part_ids"][:n]
+        color_ids = raw["color_ids"][:n]
         if pad > 0:
-            z = torch.zeros(pad, dtype=torch.long)
-            positions = torch.cat([positions, torch.zeros(pad, 3)], dim=0)
-            rot_ids = torch.cat([rot_ids, z])
-            part_ids = torch.cat([part_ids, z])
-            color_ids = torch.cat([color_ids, z])
+            z_long = torch.zeros(pad, dtype=torch.long)
+            part_ids = torch.cat([part_ids, z_long])
+            color_ids = torch.cat([color_ids, z_long])
 
-        torch.save(
-            {
-                "positions": positions,
-                "rot_ids": rot_ids,
-                "part_ids": part_ids,
-                "color_ids": color_ids,
-                "padding_mask": padding_mask,
-                "n_bricks": n,
-            },
-            out_dir / f"{mpd_path.stem}.pt",
-        )
+        for aug_idx, aug_mat in enumerate(_AUG_TRANSFORMS):
+            aug_pos = torch.from_numpy((pos_np @ aug_mat.T).astype(np.float32))  # (n, 3)
+            aug_rot = torch.from_numpy(_ROT_REMAP[aug_idx][rot_np])              # (n,) int64
+
+            if pad > 0:
+                aug_pos = torch.cat([aug_pos, torch.zeros(pad, 3)], dim=0)
+                aug_rot = torch.cat([aug_rot, z_long])
+
+            torch.save(
+                {
+                    "positions": aug_pos,
+                    "rot_ids": aug_rot,
+                    "part_ids": part_ids,
+                    "color_ids": color_ids,
+                    "padding_mask": padding_mask,
+                    "n_bricks": n,
+                },
+                out_dir / f"{mpd_path.stem}_aug{aug_idx}.pt",
+            )
         saved += 1
 
-    logger.info("Saved %d tensors to %s", saved, out_dir)
+    logger.info(
+        "Saved %d sets × 8 augmentations = %d tensors to %s",
+        saved, saved * 8, out_dir,
+    )
 
 
 if __name__ == "__main__":
