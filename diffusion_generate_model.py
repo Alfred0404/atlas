@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--n-sets", type=int, default=1)
     parser.add_argument("--n-bricks", type=int, default=None, help="Force exactly N bricks (takes top-N by confidence)")
     parser.add_argument("--min-confidence", type=float, default=0.02)
+    parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature for discrete heads (0=argmax, 1=learned distribution, >1=more diverse)")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
@@ -48,7 +49,9 @@ def main():
     vocab = torch.load(vocab_path, weights_only=True)
 
     logger.info("Generating %d set(s) for theme '%s'...", args.n_sets, args.theme)
-    sets = generate(model, ddpm, cfg, vocab, args.device, args.n_sets, n_bricks=args.n_bricks, min_confidence=args.min_confidence)
+    sets = generate(model, ddpm, cfg, vocab, args.device, args.n_sets,
+                    n_bricks=args.n_bricks, min_confidence=args.min_confidence,
+                    temperature=args.temperature)
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

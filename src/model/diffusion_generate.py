@@ -30,6 +30,24 @@ def _softmax(x: np.ndarray) -> np.ndarray:
     return e / e.sum(axis=-1, keepdims=True)
 
 
+def _sample_categorical(logits: np.ndarray, temperature: float) -> np.ndarray:
+    """Sample class indices from logits with temperature.
+
+    temperature=0 → argmax (deterministic mode collapse)
+    temperature=1 → sample from learned distribution
+    temperature>1 → more uniform / diverse
+    """
+    if temperature <= 0.0:
+        return logits.argmax(axis=-1)
+    probs = _softmax(logits / temperature)
+    shape = probs.shape[:-1]
+    flat = probs.reshape(-1, probs.shape[-1])
+    # Vectorised inverse-CDF sampling
+    cumprobs = flat.cumsum(axis=-1)
+    u = np.random.uniform(size=(flat.shape[0], 1))
+    return (u < cumprobs).argmax(axis=-1).reshape(shape)
+
+
 def generate(
     model: DiT,
     ddpm: DDPM,
@@ -39,6 +57,7 @@ def generate(
     n_sets: int = 1,
     n_bricks: int = None,
     min_confidence: float = 0.02,
+    temperature: float = 1.0,
 ) -> list[list[RawBrickData]]:
     """Generate n_sets LEGO sets via reverse diffusion.
 
@@ -55,16 +74,25 @@ def generate(
     positions = result["positions"].cpu().numpy() * vocab["global_scale"]
     positions = _snap(positions.reshape(-1, 3)).reshape(n_sets, cfg.max_bricks, 3)
 
-    part_logits = result["part_logits"].cpu().numpy()   # (n_sets, N, n_parts)
-    color_ids = result["color_logits"].cpu().numpy().argmax(axis=-1)  # (n_sets, N)
-    rot_ids = result["rot_logits"].cpu().numpy().argmax(axis=-1)      # (n_sets, N)
+    # Deduplicate: mark positions that share an identical grid cell as not-keep
+    # Done after snap so (x,y,z) tuples are exact integers.
+    _snapped_keys = [
+        {tuple(positions[s, i].tolist()): i for i in range(cfg.max_bricks - 1, -1, -1)}
+        for s in range(n_sets)
+    ]  # last brick at a cell wins (arbitrary, keeps a consistent survivor)
+
+    part_logits = result["part_logits"].cpu().numpy()        # (n_sets, N, n_parts)
+    color_ids = _sample_categorical(                          # (n_sets, N)
+        result["color_logits"].cpu().numpy(), temperature)
+    rot_ids = _sample_categorical(                            # (n_sets, N)
+        result["rot_logits"].cpu().numpy(), temperature)
 
     # Exclude index 0 (UNK/PAD) from part selection
     part_logits_no_unk = part_logits.copy()
     part_logits_no_unk[:, :, 0] = -np.inf
-    part_probs = _softmax(part_logits_no_unk)           # (n_sets, N, n_parts)
-    part_ids = part_probs.argmax(axis=-1)               # (n_sets, N), always ≥ 1
-    confidence = part_probs.max(axis=-1)                # (n_sets, N)
+    part_ids = _sample_categorical(part_logits_no_unk, temperature)  # (n_sets, N), always ≥ 1
+    # Confidence based on temperature-scaled probabilities (for brick filtering)
+    confidence = _softmax(part_logits_no_unk / max(temperature, 1e-6)).max(axis=-1)
 
     inv_part = {v: k for k, v in vocab["part_vocab"].items()}
     inv_color = {v: k for k, v in vocab["color_vocab"].items()}
@@ -84,8 +112,11 @@ def generate(
         kept = keep.sum()
         logger.info("Set %d: keeping %d / %d positions (min_conf=%.3f)", s, kept, cfg.max_bricks, min_confidence)
 
+        unique_indices = set(_snapped_keys[s].values())  # one survivor per grid cell
         bricks = []
         for i in np.where(keep)[0]:
+            if int(i) not in unique_indices:              # skip clipping duplicates
+                continue
             pid = int(part_ids[s, i])
             brick_id = inv_part.get(pid, "3001")
             color = inv_color.get(int(color_ids[s, i]), 15)
