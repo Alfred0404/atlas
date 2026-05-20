@@ -17,7 +17,6 @@ class DDPM:
         self.sqrt_alpha_bar = alpha_bar.sqrt().to(device)
         self.sqrt_one_minus_alpha_bar = (1.0 - alpha_bar).sqrt().to(device)
         self.sqrt_alphas = alphas.sqrt().to(device)
-        # Posterior variance and mean coefficients for q(x_{t-1} | x_t, x_0)
         self.post_var = (betas * (1 - alpha_bar_prev) / (1 - alpha_bar)).to(device)
         self.post_coef1 = (alpha_bar_prev.sqrt() * betas / (1 - alpha_bar)).to(device)
         self.post_coef2 = (alphas.sqrt() * (1 - alpha_bar_prev) / (1 - alpha_bar)).to(device)
@@ -36,14 +35,6 @@ class DDPM:
     def q_sample(
         self, x0: torch.Tensor, t: torch.Tensor, noise: torch.Tensor = None
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Add noise to x0 at timestep t.
-
-        Args:
-            x0: (B, N, 3) clean positions
-            t:  (B,) timestep indices in [0, T-1]
-        Returns:
-            (xt, noise): noisy positions and the added noise
-        """
         if noise is None:
             noise = torch.randn_like(x0)
         sa = self.sqrt_alpha_bar[t].view(-1, 1, 1)
@@ -56,20 +47,21 @@ class DDPM:
         model,
         xt: torch.Tensor,
         t: int,
-        padding_mask: torch.Tensor = None,
-    ) -> tuple[torch.Tensor, dict]:
+        cond: dict,
+    ) -> torch.Tensor:
         """One reverse step: x_t → x_{t-1}.
 
-        Returns:
-            (x_{t-1}, model_output_dict)
+        cond must contain part_ids, color_ids, rot_ids, padding_mask.
         """
         B = xt.shape[0]
         t_batch = torch.full((B,), t, device=xt.device, dtype=torch.long)
 
-        out = model(xt, t_batch, padding_mask)
-        pred_noise = out["noise_pred"]
+        pred_noise = model(
+            xt, t_batch,
+            cond["part_ids"], cond["color_ids"], cond["rot_ids"],
+            cond.get("padding_mask"),
+        )["noise_pred"]
 
-        # Reconstruct x_0 estimate, then compute posterior mean
         x0_pred = (
             xt - self.sqrt_one_minus_alpha_bar[t] * pred_noise
         ) / self.sqrt_alpha_bar[t]
@@ -78,10 +70,10 @@ class DDPM:
         mean = self.post_coef1[t] * x0_pred + self.post_coef2[t] * xt
 
         if t == 0:
-            return mean, out
+            return mean
 
         noise = torch.randn_like(xt)
-        return mean + self.post_var[t].sqrt() * noise, out
+        return mean + self.post_var[t].sqrt() * noise
 
     @torch.no_grad()
     def sample(
@@ -89,20 +81,13 @@ class DDPM:
         model,
         shape: tuple,
         device: str,
-        padding_mask: torch.Tensor = None,
-    ) -> dict:
-        """Full reverse diffusion: pure noise → generated positions.
-
-        Args:
-            model: DiT (eval mode)
-            shape: (B, N, 3)
-            device: torch device string
-            padding_mask: (B, N) bool, True = padded
-        Returns:
-            dict with 'positions', 'part_logits', 'color_logits', 'rot_logits'
-        """
+        cond: dict,
+    ) -> torch.Tensor:
+        """Full reverse diffusion: pure noise → generated positions (B, N, 3)."""
         xt = torch.randn(shape, device=device)
-        last_out = None
+        pad = cond.get("padding_mask")
         for t in reversed(range(self.T)):
-            xt, last_out = self.p_sample(model, xt, t, padding_mask)
-        return {"positions": xt, **{k: v for k, v in last_out.items() if k != "noise_pred"}}
+            xt = self.p_sample(model, xt, t, cond)
+            if pad is not None:
+                xt = xt.masked_fill(pad.unsqueeze(-1), 0.0)
+        return xt

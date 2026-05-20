@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 from pathlib import Path
 from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, SequentialLR
 
@@ -30,15 +29,14 @@ class DiffusionTrainer:
         self.scheduler = SequentialLR(self.optimizer, schedulers=[warmup, cosine],
                                       milestones=[cfg.warmup_epochs])
 
-        self.ce = nn.CrossEntropyLoss(ignore_index=-100)
         self.global_step = 0
 
-    def _loss(self, batch: dict) -> tuple[torch.Tensor, dict]:
-        x0 = batch["positions"].to(self.device)           # (B, N, 3)
-        padding_mask = batch["padding_mask"].to(self.device)  # (B, N)
-        part_ids = batch["part_ids"].to(self.device)       # (B, N)
-        color_ids = batch["color_ids"].to(self.device)     # (B, N)
-        rot_ids = batch["rot_ids"].to(self.device)         # (B, N)
+    def _loss(self, batch: dict) -> torch.Tensor:
+        x0 = batch["positions"].to(self.device)
+        padding_mask = batch["padding_mask"].to(self.device)
+        part_ids = batch["part_ids"].to(self.device)
+        color_ids = batch["color_ids"].to(self.device)
+        rot_ids = batch["rot_ids"].to(self.device)
 
         B = x0.shape[0]
         t = torch.randint(0, self.cfg.T, (B,), device=self.device)
@@ -46,63 +44,34 @@ class DiffusionTrainer:
         xt, noise = self.ddpm.q_sample(x0, t)
         xt = xt.masked_fill(padding_mask.unsqueeze(-1), 0.0)
 
-        out = self.model(xt, t, padding_mask)
+        pred = self.model(xt, t, part_ids, color_ids, rot_ids, padding_mask)["noise_pred"]
 
-        # Continuous loss on non-padded bricks only
-        valid = ~padding_mask  # (B, N)
-        pos_loss = (
-            ((noise - out["noise_pred"]) ** 2)
-            .mean(dim=-1)       # (B, N)
+        valid = ~padding_mask
+        loss = (
+            ((noise - pred) ** 2)
+            .mean(dim=-1)
             .masked_fill(~valid, 0.0)
             .sum() / valid.sum().clamp(min=1)
         )
-
-        # Discrete losses — only at low t (positions are near-clean, classification is tractable)
-        discrete_mask = t < self.cfg.discrete_t_max  # (B,) — True = include discrete loss
-
-        def ce(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-            targets = targets.masked_fill(padding_mask, -100)
-            targets = targets.masked_fill(targets == 0, -100)          # exclude UNK (id=0)
-            targets = targets.masked_fill(~discrete_mask.unsqueeze(1), -100)
-            if not (targets != -100).any():
-                return torch.zeros((), device=logits.device)
-            return self.ce(logits.view(-1, logits.shape[-1]), targets.view(-1))
-
-        part_loss = ce(out["part_logits"], part_ids)
-        color_loss = ce(out["color_logits"], color_ids)
-        rot_loss = ce(out["rot_logits"], rot_ids)
-
-        cfg = self.cfg
-        loss = (
-            cfg.lambda_pos * pos_loss
-            + cfg.lambda_part * part_loss
-            + cfg.lambda_color * color_loss
-            + cfg.lambda_rot * rot_loss
-        )
-        return loss, {
-            "pos": pos_loss.item(),
-            "part": part_loss.item(),
-            "color": color_loss.item(),
-            "rot": rot_loss.item(),
-        }
+        return loss
 
     def train_step(self, batch: dict) -> dict:
         self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
 
-        loss, metrics = self._loss(batch)
+        loss = self._loss(batch)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip)
         self.optimizer.step()
         self.global_step += 1
 
-        return {"loss": loss.item(), **metrics}
+        return {"loss": loss.item()}
 
     def eval_step(self, batch: dict) -> dict:
         self.model.eval()
         with torch.no_grad():
-            loss, metrics = self._loss(batch)
-        return {"loss": loss.item(), **metrics}
+            loss = self._loss(batch)
+        return {"loss": loss.item()}
 
     def save_checkpoint(self, ckpt_dir: Path):
         ckpt_dir.mkdir(parents=True, exist_ok=True)

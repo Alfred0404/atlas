@@ -25,99 +25,62 @@ def _snap(positions: np.ndarray) -> np.ndarray:
     return p
 
 
-def _softmax(x: np.ndarray) -> np.ndarray:
-    e = np.exp(x - x.max(axis=-1, keepdims=True))
-    return e / e.sum(axis=-1, keepdims=True)
-
-
-def _sample_categorical(logits: np.ndarray, temperature: float) -> np.ndarray:
-    """Sample class indices from logits with temperature.
-
-    temperature=0 → argmax (deterministic mode collapse)
-    temperature=1 → sample from learned distribution
-    temperature>1 → more uniform / diverse
-    """
-    if temperature <= 0.0:
-        return logits.argmax(axis=-1)
-    probs = _softmax(logits / temperature)
-    shape = probs.shape[:-1]
-    flat = probs.reshape(-1, probs.shape[-1])
-    # Vectorised inverse-CDF sampling
-    cumprobs = flat.cumsum(axis=-1)
-    u = np.random.uniform(size=(flat.shape[0], 1))
-    return (u < cumprobs).argmax(axis=-1).reshape(shape)
-
-
 def generate(
     model: DiT,
     ddpm: DDPM,
     cfg: DiffusionConfig,
     vocab: dict,
     device: str,
+    bag: dict,
     n_sets: int = 1,
-    n_bricks: int = None,
-    min_confidence: float = 0.02,
-    temperature: float = 1.0,
 ) -> list[list[RawBrickData]]:
-    """Generate n_sets LEGO sets via reverse diffusion.
+    """Generate n_sets LEGO sets via reverse diffusion conditioned on a bag.
 
     Args:
-        n_bricks: target brick count per set (default: avg of training sets).
-            The top-n_bricks most confident positions are kept.
-        min_confidence: minimum softmax probability for a brick to be kept.
-
-    Returns a list of RawBrickData lists (one per set).
+        bag: dict with part_ids, color_ids, rot_ids, padding_mask each (max_bricks,) — or
+             (n_sets, max_bricks). A 1-D bag is broadcast to n_sets.
     """
     model.eval()
-    result = ddpm.sample(model, (n_sets, cfg.max_bricks, 3), device)
 
-    positions = result["positions"].cpu().numpy() * vocab["global_scale"]
+    def _expand(t: torch.Tensor) -> torch.Tensor:
+        if t.dim() == 1:
+            t = t.unsqueeze(0).expand(n_sets, -1)
+        return t.to(device)
+
+    cond = {
+        "part_ids": _expand(bag["part_ids"]),
+        "color_ids": _expand(bag["color_ids"]),
+        "rot_ids": _expand(bag["rot_ids"]),
+        "padding_mask": _expand(bag["padding_mask"]),
+    }
+
+    positions = ddpm.sample(model, (n_sets, cfg.max_bricks, 3), device, cond=cond)
+    positions = positions.cpu().numpy() * vocab["global_scale"]
     positions = _snap(positions.reshape(-1, 3)).reshape(n_sets, cfg.max_bricks, 3)
 
-    # Deduplicate: mark positions that share an identical grid cell as not-keep
-    # Done after snap so (x,y,z) tuples are exact integers.
-    _snapped_keys = [
-        {tuple(positions[s, i].tolist()): i for i in range(cfg.max_bricks - 1, -1, -1)}
-        for s in range(n_sets)
-    ]  # last brick at a cell wins (arbitrary, keeps a consistent survivor)
-
-    part_logits = result["part_logits"].cpu().numpy()        # (n_sets, N, n_parts)
-    color_ids = _sample_categorical(                          # (n_sets, N)
-        result["color_logits"].cpu().numpy(), temperature)
-    rot_ids = _sample_categorical(                            # (n_sets, N)
-        result["rot_logits"].cpu().numpy(), temperature)
-
-    # Exclude index 0 (UNK/PAD) from part selection
-    part_logits_no_unk = part_logits.copy()
-    part_logits_no_unk[:, :, 0] = -np.inf
-    part_ids = _sample_categorical(part_logits_no_unk, temperature)  # (n_sets, N), always ≥ 1
-    # Confidence based on temperature-scaled probabilities (for brick filtering)
-    confidence = _softmax(part_logits_no_unk / max(temperature, 1e-6)).max(axis=-1)
+    part_ids = cond["part_ids"].cpu().numpy()
+    color_ids = cond["color_ids"].cpu().numpy()
+    rot_ids = cond["rot_ids"].cpu().numpy()
+    padding_mask = cond["padding_mask"].cpu().numpy()
 
     inv_part = {v: k for k, v in vocab["part_vocab"].items()}
     inv_color = {v: k for k, v in vocab["color_vocab"].items()}
 
     all_sets = []
     for s in range(n_sets):
-        conf = confidence[s]  # (N,)
-
-        # Keep top-n_bricks by confidence, then threshold
-        if n_bricks is not None:
-            top_k = min(n_bricks, cfg.max_bricks)
-            keep = np.zeros(cfg.max_bricks, dtype=bool)
-            keep[np.argsort(conf)[-top_k:]] = True
-        else:
-            keep = conf > min_confidence
-
-        kept = keep.sum()
-        logger.info("Set %d: keeping %d / %d positions (min_conf=%.3f)", s, kept, cfg.max_bricks, min_confidence)
-
-        unique_indices = set(_snapped_keys[s].values())  # one survivor per grid cell
+        seen = set()
         bricks = []
-        for i in np.where(keep)[0]:
-            if int(i) not in unique_indices:              # skip clipping duplicates
+        for i in range(cfg.max_bricks):
+            if padding_mask[s, i]:
                 continue
             pid = int(part_ids[s, i])
+            if pid == 0:
+                continue
+            key = tuple(positions[s, i].tolist())
+            if key in seen:
+                continue
+            seen.add(key)
+
             brick_id = inv_part.get(pid, "3001")
             color = inv_color.get(int(color_ids[s, i]), 15)
             rot_mat = _ROTATION_MATRICES[int(rot_ids[s, i]) % len(_ROTATION_MATRICES)]
@@ -128,6 +91,7 @@ def generate(
 
             bricks.append(RawBrickData(brick_id=brick_id, world_matrix=world, color=color))
 
+        logger.info("Set %d: %d bricks (after grid dedup)", s, len(bricks))
         all_sets.append(bricks)
 
     return all_sets

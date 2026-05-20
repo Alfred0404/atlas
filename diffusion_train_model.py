@@ -17,30 +17,19 @@ from src.utils.logging import setup_logging
 logger = setup_logging()
 
 
-def _plot_losses(history: dict, out_path: Path, val_history: dict = None):
+def _plot_losses(history: list[float], out_path: Path, val_history: list[float] = None):
     import matplotlib.pyplot as plt
 
-    fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
-    epochs = range(1, len(history["loss"]) + 1)
-
-    axes[0].plot(epochs, history["loss"], label="train")
+    fig, ax = plt.subplots(figsize=(10, 5))
+    epochs = range(1, len(history) + 1)
+    ax.plot(epochs, history, label="train")
     if val_history:
-        axes[0].plot(epochs, val_history["loss"], label="val", linestyle="--")
-    axes[0].set_ylabel("Loss")
-    axes[0].set_title("Total loss")
-    axes[0].legend()
-    axes[0].grid(True, alpha=0.3)
-
-    for key in ("pos", "part", "color", "rot"):
-        l, = axes[1].plot(epochs, history[key], label=key)
-        if val_history:
-            axes[1].plot(epochs, val_history[key], linestyle="--", color=l.get_color())
-    axes[1].set_ylabel("Loss")
-    axes[1].set_xlabel("Epoch")
-    axes[1].set_title("Loss components (solid=train, dashed=val)")
-    axes[1].legend()
-    axes[1].grid(True, alpha=0.3)
-
+        ax.plot(epochs, val_history, label="val", linestyle="--")
+    ax.set_ylabel("MSE noise loss")
+    ax.set_xlabel("Epoch")
+    ax.set_title("Position-denoising loss")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     logger.info("Loss plot saved to %s", out_path)
@@ -57,7 +46,6 @@ def main():
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--no-resume", action="store_true")
     parser.add_argument("--max-sets", type=int, default=None, help="Limit dataset to first N sets (overfit test)")
-    parser.add_argument("--discrete-t-max", type=int, default=500, help="Only compute discrete CE loss when t < this value (default=T, i.e. all steps)")
     args = parser.parse_args()
 
     vocab_path = Path(args.data_dir) / f"vocab_{args.theme}.pt"
@@ -74,12 +62,10 @@ def main():
         n_colors=vocab["n_colors"],
         batch_size=args.batch_size,
         max_epochs=args.epochs,
-        discrete_t_max=args.discrete_t_max,
     )
 
     full_dataset = DiffusionDataset(Path(args.data_dir) / args.theme, max_sets=args.max_sets)
 
-    # Train / val split (90/10). Disabled for tiny datasets (< 5 sets) to avoid empty val.
     pin = args.device == "cuda"
     val_loader = None
     if len(full_dataset) >= 5:
@@ -94,9 +80,6 @@ def main():
     else:
         train_dataset = full_dataset
 
-    # When dataset is smaller than batch_size (e.g. single-set overfit), sample with
-    # replacement to fill a full batch — each slot gets a different t in _loss,
-    # giving a stable gradient across timesteps rather than one noisy t per epoch.
     if len(train_dataset) < cfg.batch_size:
         sampler = RandomSampler(train_dataset, replacement=True, num_samples=cfg.batch_size)
         loader = DataLoader(train_dataset, batch_size=cfg.batch_size, sampler=sampler,
@@ -116,42 +99,25 @@ def main():
     if not args.no_resume:
         trainer.load_checkpoint(ckpt_dir)
 
-    _keys = ("loss", "pos", "part", "color", "rot")
-    history: dict[str, list[float]] = {k: [] for k in _keys}
-    val_history: dict[str, list[float]] = {k: [] for k in _keys} if val_loader else None
+    history: list[float] = []
+    val_history: list[float] = [] if val_loader else None
 
     for epoch in range(cfg.max_epochs):
-        totals: dict[str, float] = {k: 0.0 for k in _keys}
+        total = 0.0
         for batch in loader:
-            m = trainer.train_step(batch)
-            for k in _keys:
-                totals[k] += m[k]
+            total += trainer.train_step(batch)["loss"]
 
         trainer.scheduler.step()
-
-        n = len(loader)
-        for k in _keys:
-            history[k].append(totals[k] / n)
+        history.append(total / len(loader))
 
         val_suffix = ""
         if val_loader:
-            val_totals: dict[str, float] = {k: 0.0 for k in _keys}
-            for batch in val_loader:
-                m = trainer.eval_step(batch)
-                for k in _keys:
-                    val_totals[k] += m[k]
-            nv = len(val_loader)
-            for k in _keys:
-                val_history[k].append(val_totals[k] / nv)
-            val_suffix = f" | val_loss={val_history['loss'][-1]:.4f}"
+            v = sum(trainer.eval_step(b)["loss"] for b in val_loader) / len(val_loader)
+            val_history.append(v)
+            val_suffix = f" | val_loss={v:.4f}"
 
-        logger.info(
-            "Epoch %d/%d | loss=%.4f | pos=%.4f part=%.4f color=%.4f rot=%.4f%s",
-            epoch + 1, cfg.max_epochs,
-            history["loss"][-1], history["pos"][-1],
-            history["part"][-1], history["color"][-1], history["rot"][-1],
-            val_suffix,
-        )
+        logger.info("Epoch %d/%d | loss=%.4f%s",
+                    epoch + 1, cfg.max_epochs, history[-1], val_suffix)
 
         if trainer.global_step > 0 and trainer.global_step % cfg.checkpoint_interval == 0:
             trainer.save_checkpoint(ckpt_dir)

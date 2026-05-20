@@ -42,10 +42,11 @@ class _DiTBlock(nn.Module):
 
 
 class DiT(nn.Module):
-    """Diffusion Transformer for LEGO set generation.
+    """Conditional position-denoiser.
 
-    Input:  (B, N, 3) noisy positions + (B,) timesteps
-    Output: noise_pred (B, N, 3), part/color/rot logits (B, N, *)
+    Inputs: noisy positions (B, N, 3), timesteps (B,), and the bag of bricks
+    (part_ids, color_ids, rot_ids) as conditioning.
+    Output: noise_pred (B, N, 3).
     """
 
     def __init__(self, cfg: DiffusionConfig):
@@ -57,6 +58,10 @@ class DiT(nn.Module):
             nn.GELU(),
             nn.Linear(d, d),
         )
+
+        self.part_embed = nn.Embedding(cfg.n_parts, d, padding_idx=0)
+        self.color_embed = nn.Embedding(cfg.n_colors, d, padding_idx=0)
+        self.rot_embed = nn.Embedding(cfg.n_rots, d)
 
         self.time_embed = nn.Sequential(
             _SinusoidalEmbedding(d),
@@ -70,11 +75,7 @@ class DiT(nn.Module):
         )
 
         self.norm = nn.LayerNorm(d)
-
         self.head_noise = nn.Linear(d, 3)
-        self.head_part = nn.Linear(d, cfg.n_parts)
-        self.head_color = nn.Linear(d, cfg.n_colors)
-        self.head_rot = nn.Linear(d, cfg.n_rots)
 
         self._init_weights()
 
@@ -84,7 +85,11 @@ class DiT(nn.Module):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-        # Zero-init noise head so initial predictions are ~0
+        for emb in (self.part_embed, self.color_embed, self.rot_embed):
+            nn.init.normal_(emb.weight, std=0.02)
+            if emb.padding_idx is not None:
+                with torch.no_grad():
+                    emb.weight[emb.padding_idx].zero_()
         nn.init.zeros_(self.head_noise.weight)
         nn.init.zeros_(self.head_noise.bias)
 
@@ -92,17 +97,26 @@ class DiT(nn.Module):
         self,
         x: torch.Tensor,
         t: torch.Tensor,
+        part_ids: torch.Tensor,
+        color_ids: torch.Tensor,
+        rot_ids: torch.Tensor,
         padding_mask: torch.Tensor = None,
     ) -> dict:
         """
         Args:
             x:            (B, N, 3) noisy positions
             t:            (B,) timestep indices
-            padding_mask: (B, N) bool, True = padded brick (ignored in attention)
-        Returns:
-            dict with noise_pred, part_logits, color_logits, rot_logits
+            part_ids:     (B, N) int64, 0=PAD/UNK
+            color_ids:    (B, N) int64, 0=PAD/UNK
+            rot_ids:      (B, N) int64
+            padding_mask: (B, N) bool, True = padded brick
         """
-        h = self.pos_embed(x)
+        h = (
+            self.pos_embed(x)
+            + self.part_embed(part_ids)
+            + self.color_embed(color_ids)
+            + self.rot_embed(rot_ids)
+        )
         h = h + self.time_embed(t).unsqueeze(1)
 
         for block in self.blocks:
@@ -110,9 +124,4 @@ class DiT(nn.Module):
 
         h = self.norm(h)
 
-        return {
-            "noise_pred": self.head_noise(h),
-            "part_logits": self.head_part(h),
-            "color_logits": self.head_color(h),
-            "rot_logits": self.head_rot(h),
-        }
+        return {"noise_pred": self.head_noise(h)}

@@ -117,22 +117,22 @@ Padding: sets shorter than N are zero-padded; `padding_mask` (bool tensor) marks
 
 ### Model
 
-**DiT** (`src/model/dit.py`): Diffusion Transformer.
+**DiT** (`src/model/dit.py`): conditional position-denoiser. The bag of bricks (part/color/rot ids) is given as input; the model only learns the spatial arrangement.
 - Position embedding: MLP(3 → d_model)
+- Bag embeddings: nn.Embedding for part_id, color_id, rot_id (summed with pos_embed)
 - Timestep embedding: sinusoidal → MLP(d → d)
 - K transformer blocks (pre-norm self-attention with padding mask, GELU FFN)
-- 4 output heads: noise_pred (3), part_logits (n_parts), color_logits (n_colors), rot_logits (24)
+- 1 output head: noise_pred (3)
 
 **DDPM** (`src/model/ddpm.py`): cosine noise schedule, T=500 steps.
 - Forward: `q_sample(x0, t)` → `(x_t, noise)`
-- Reverse: `p_sample(model, x_t, t)` → `x_{t-1}`, `sample()` → full generation
+- Reverse: `p_sample(model, x_t, t, cond)` → `x_{t-1}`, `sample(..., cond)` → positions
 
-**Training** (`src/model/diffusion_train.py`): AdamW (lr=3e-4) + cosine annealing.
-- Continuous loss: MSE on predicted noise, non-padded bricks only
-- Discrete losses: CrossEntropy (ignore_index=-100 for padding) on part/color/rot at every timestep
+**Training** (`src/model/diffusion_train.py`): AdamW (lr=3e-4) + linear warmup + cosine annealing.
+- Single MSE loss on predicted noise, non-padded bricks only
 - Grad clipping at 1.0
 
-**Generation** (`src/model/diffusion_generate.py`): full reverse diffusion → snap to LEGO grid (20 LDU x/z, 8 LDU y) → argmax discrete heads → write MPD.
+**Generation** (`src/model/diffusion_generate.py`): bag (parts/colors/rots) supplied as conditioning, full reverse diffusion → snap to LEGO grid (20 LDU x/z, 8 LDU y) → write MPD. The bag comes from a random training set or `--template <set.pt>`.
 
 ### Key Directories
 

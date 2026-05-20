@@ -29,12 +29,3 @@ class DiffusionConfig:
     warmup_epochs: int = 5
     grad_clip: float = 1.0
     checkpoint_interval: int = 500
-
-    # Loss weights
-    lambda_pos: float = 1.0
-    lambda_part: float = 1.0
-    lambda_color: float = 0.5
-    lambda_rot: float = 0.5
-
-    # Compute discrete CE loss at all timesteps (set < T to restrict to low-noise steps only)
-    discrete_t_max: int = 500
