@@ -61,11 +61,13 @@ class MPDParser:
                 lines.append(line)
 
                 if line.startswith("0 FILE"):
-                    current_file = line.split(maxsplit=2)[2]
+                    # Normalize submodel name (strip trailing spaces/newlines)
+                    current_file = line.split(maxsplit=2)[2].strip()
                     self._submodels[current_file] = []
 
                 elif line.startswith("1 ") and current_file is not None:
                     # Add line to current submodel
+                    # keep raw line (may contain trailing spaces) — we'll parse safely later
                     self._submodels[current_file].append(line)
 
         return lines
@@ -89,6 +91,10 @@ class MPDParser:
                 # Parse transformation matrix components from the line
                 parts = line.split(maxsplit=14)
                 # Format: 1 color x y z a b c d e f g h i file
+                filename = (
+                    parts[-1] if len(parts) >= 15 else line.rsplit(maxsplit=1)[-1]
+                )
+                filename = filename.strip().lower().replace("\\", "/")
                 color = int(parts[1])
                 x, y, z = float(parts[2]), float(parts[3]), float(parts[4])
                 # Transformation matrix elements
@@ -108,15 +114,13 @@ class MPDParser:
                 # compute world matrix to get the overall brick position and rotation
                 world_matrix = parent_matrix @ local_matrix
 
-                line_lower = line.lower()
-
                 # if submodel, recursively flatten it
-                if line_lower.endswith(".ldr\n"):
-                    submodel_name = line.split(maxsplit=14)[-1]
+                if filename.endswith(".ldr"):
+                    submodel_name = filename
                     self.flatten(submodel_name, world_matrix)
 
                 # if brick, extract its data and store it
-                elif line_lower.endswith(".dat\n"):
+                elif filename.endswith(".dat"):
                     brick_vector, brick_id = line_to_vector(line)
                     brick_color = int(brick_vector[0])
 

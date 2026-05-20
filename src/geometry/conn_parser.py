@@ -11,38 +11,78 @@ from src.geometry.port import Port
 _DEFAULT_PARTS_DIR = Path("C:/Users/Public/Documents/LDraw/parts")
 
 # Primitive names that represent a stud (male connection point).
-_STUD_NAMES = frozenset({
-    # Standard open/solid studs
-    "stud.dat", "stud2.dat", "stud2a.dat", "stud2s.dat", "stud2s2.dat",
-    "studa.dat",
-    # Logo variants — functionally identical to stud/stud2
-    "stud-logo.dat", "stud-logo2.dat", "stud-logo3.dat", "stud-logo4.dat", "stud-logo5.dat",
-    "stud2-logo.dat", "stud2-logo2.dat", "stud2-logo3.dat", "stud2-logo4.dat", "stud2-logo5.dat",
-    # SNOT and specialty studs
-    "stud10.dat", "stud13.dat", "stud15.dat",
-    "stud16.dat", "stud16a.dat", "stud17.dat", "stud17a.dat",
-    "stud20.dat", "studp01.dat",
-})
+_STUD_NAMES = frozenset(
+    {
+        # Standard open/solid studs
+        "stud.dat",
+        "stud2.dat",
+        "stud2a.dat",
+        "stud2s.dat",
+        "stud2s2.dat",
+        "studa.dat",
+        # Logo variants — functionally identical to stud/stud2
+        "stud-logo.dat",
+        "stud-logo2.dat",
+        "stud-logo3.dat",
+        "stud-logo4.dat",
+        "stud-logo5.dat",
+        "stud2-logo.dat",
+        "stud2-logo2.dat",
+        "stud2-logo3.dat",
+        "stud2-logo4.dat",
+        "stud2-logo5.dat",
+        # SNOT and specialty studs
+        "stud10.dat",
+        "stud13.dat",
+        "stud15.dat",
+        "stud16.dat",
+        "stud16a.dat",
+        "stud17.dat",
+        "stud17a.dat",
+        "stud20.dat",
+        "studp01.dat",
+    }
+)
 
 # Primitive names that represent an anti-stud / underside tube (female).
-_ANTISTUD_NAMES = frozenset({
-    # Standard tubes
-    "stud3.dat", "stud3a.dat",
-    "stud4.dat", "stud4a.dat", "stud4h.dat",
-    "stud4o.dat", "stud4od.dat", "stud4oda.dat",
-    "stud4s.dat", "stud4s2.dat",
-    # Fraction variants for curved / fan-shaped parts
-    "1-16stud4.dat", "1-4stud4.dat", "1-8stud4.dat",
-    "2-4stud4.dat", "2-4stud4a.dat", "2-4stud4f1w.dat",
-    "3-16stud4.dat", "3-16stud4t4.dat", "3-4stud4.dat",
-    "5-16stud4.dat",
-    # Partial-width stud4 faces
-    "stud4f1n.dat", "stud4f1s.dat", "stud4f1w.dat",
-    "stud4f2n.dat", "stud4f2s.dat", "stud4f2w.dat",
-    "stud4f3n.dat", "stud4f3s.dat",
-    "stud4f4n.dat", "stud4f4s.dat",
-    "stud4f5n.dat",
-})
+_ANTISTUD_NAMES = frozenset(
+    {
+        # Standard tubes
+        "stud3.dat",
+        "stud3a.dat",
+        "stud4.dat",
+        "stud4a.dat",
+        "stud4h.dat",
+        "stud4o.dat",
+        "stud4od.dat",
+        "stud4oda.dat",
+        "stud4s.dat",
+        "stud4s2.dat",
+        # Fraction variants for curved / fan-shaped parts
+        "1-16stud4.dat",
+        "1-4stud4.dat",
+        "1-8stud4.dat",
+        "2-4stud4.dat",
+        "2-4stud4a.dat",
+        "2-4stud4f1w.dat",
+        "3-16stud4.dat",
+        "3-16stud4t4.dat",
+        "3-4stud4.dat",
+        "5-16stud4.dat",
+        # Partial-width stud4 faces
+        "stud4f1n.dat",
+        "stud4f1s.dat",
+        "stud4f1w.dat",
+        "stud4f2n.dat",
+        "stud4f2s.dat",
+        "stud4f2w.dat",
+        "stud4f3n.dat",
+        "stud4f3s.dat",
+        "stud4f4n.dat",
+        "stud4f4s.dat",
+        "stud4f5n.dat",
+    }
+)
 
 # Max recursion depth when resolving subfiles.
 _MAX_DEPTH = 4
@@ -67,12 +107,15 @@ def _parse_type1_line(line: str) -> tuple[np.ndarray, str] | None:
     d, e, f = vals[6], vals[7], vals[8]
     g, h, i = vals[9], vals[10], vals[11]
 
-    matrix = np.array([
-        [a, b, c, x],
-        [d, e, f, y],
-        [g, h, i, z],
-        [0, 0, 0, 1],
-    ], dtype=np.float64)
+    matrix = np.array(
+        [
+            [a, b, c, x],
+            [d, e, f, y],
+            [g, h, i, z],
+            [0, 0, 0, 1],
+        ],
+        dtype=np.float64,
+    )
 
     filename = " ".join(parts[14:]).lower().replace("\\", "/")
     return matrix, filename
@@ -187,7 +230,9 @@ class ConnParser:
         filename: str,
         parent_matrix: np.ndarray,
         depth: int,
-    ) -> tuple[list[tuple[np.ndarray, np.ndarray]], list[tuple[np.ndarray, np.ndarray]]]:
+    ) -> tuple[
+        list[tuple[np.ndarray, np.ndarray]], list[tuple[np.ndarray, np.ndarray]]
+    ]:
         """Recursively collect stud and anti-stud positions with their normals.
 
         Returns ``(males, females)`` where each entry is a ``(position, normal)``
@@ -215,14 +260,30 @@ class ConnParser:
             local_matrix, ref_name = parsed
             world_matrix = parent_matrix @ local_matrix
             base_name = ref_name.split("/")[-1]
+            base = base_name.lower()
 
-            if base_name in _STUD_NAMES:
+            # Group primitives such as ``stug-1x4.dat`` expand into multiple
+            # terminal ``stud.dat`` / ``stud3.dat`` references, so recurse into
+            # them instead of treating the wrapper as a single port.
+            resolved = self._resolve_dat(ref_name)
+            if resolved is not None and self._primitives_dir in resolved.parents:
+                if base not in _STUD_NAMES and base not in _ANTISTUD_NAMES:
+                    sub_m, sub_f = self._collect_studs(
+                        ref_name, world_matrix, depth + 1
+                    )
+                    males.extend(sub_m)
+                    females.extend(sub_f)
+                    continue
+
+            if base in _STUD_NAMES:
                 pos = world_matrix[:3, 3].copy()
                 y_col = world_matrix[:3, 1]
                 length = np.linalg.norm(y_col)
-                normal = -y_col / length if length > 1e-8 else np.array([0.0, -1.0, 0.0])
+                normal = (
+                    -y_col / length if length > 1e-8 else np.array([0.0, -1.0, 0.0])
+                )
                 males.append((pos, normal))
-            elif base_name in _ANTISTUD_NAMES:
+            elif base in _ANTISTUD_NAMES:
                 pos = world_matrix[:3, 3].copy()
                 y_col = world_matrix[:3, 1]
                 length = np.linalg.norm(y_col)
@@ -268,7 +329,7 @@ class ConnParser:
                 unique_males.append((pos, normal))
 
         vertical_males = [(p, n) for p, n in unique_males if abs(n[1]) > 0.7]
-        horiz_males    = [(p, n) for p, n in unique_males if abs(n[1]) <= 0.7]
+        horiz_males = [(p, n) for p, n in unique_males if abs(n[1]) <= 0.7]
 
         ports: list[Port] = []
         port_id = 0
@@ -276,33 +337,39 @@ class ConnParser:
         # --- Vertical ports (standard top/bottom connections) ---
         if vertical_males:
             bottom_y = self._get_bottom_y(filename)
-            y_male   = float(np.min([p[1] for p, _ in vertical_males]))
+            y_male = float(np.min([p[1] for p, _ in vertical_males]))
             y_female = bottom_y if bottom_y > y_male + 1.0 else y_male + 8.0
 
             for pos, normal in vertical_males:
-                ports.append(Port(
-                    port_id=port_id,
-                    local_position=pos,
-                    normal=normal,
-                    port_type="male",
-                ))
+                ports.append(
+                    Port(
+                        port_id=port_id,
+                        local_position=pos,
+                        normal=normal,
+                        port_type="male",
+                    )
+                )
                 port_id += 1
-                ports.append(Port(
-                    port_id=port_id,
-                    local_position=np.array([pos[0], y_female, pos[2]]),
-                    normal=-normal,
-                    port_type="female",
-                ))
+                ports.append(
+                    Port(
+                        port_id=port_id,
+                        local_position=np.array([pos[0], y_female, pos[2]]),
+                        normal=-normal,
+                        port_type="female",
+                    )
+                )
                 port_id += 1
 
         # --- Horizontal (SNOT) male ports ---
         for pos, normal in horiz_males:
-            ports.append(Port(
-                port_id=port_id,
-                local_position=pos,
-                normal=normal,
-                port_type="male",
-            ))
+            ports.append(
+                Port(
+                    port_id=port_id,
+                    local_position=pos,
+                    normal=normal,
+                    port_type="male",
+                )
+            )
             port_id += 1
 
         # --- Horizontal female ports from detected anti-stud primitives ---
@@ -314,12 +381,14 @@ class ConnParser:
                 key = (round(pos[0], 0), round(pos[1], 0), round(pos[2], 0))
                 if key not in seen_f:
                     seen_f.add(key)
-                    ports.append(Port(
-                        port_id=port_id,
-                        local_position=pos,
-                        normal=normal,
-                        port_type="female",
-                    ))
+                    ports.append(
+                        Port(
+                            port_id=port_id,
+                            local_position=pos,
+                            normal=normal,
+                            port_type="female",
+                        )
+                    )
                     port_id += 1
 
         return ports

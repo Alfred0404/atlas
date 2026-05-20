@@ -58,3 +58,4 @@ checkpoints/
 *.claude
 *.conn
 graph_sets/
+*.pt

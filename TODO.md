@@ -98,6 +98,8 @@
 - [x] LegoCore geometric engine — Port, ConnParser, ColParser, LegoPart, PartDatabase, SpatialHash, snap checking, LegoCore with graph construction ([src/geometry/](src/geometry/), 2026-03-28)
 - [x] Fix ConnParser to use actual part bottom Y from .dat geometry instead of stud4.dat reference position — bricks (height 24) now connect correctly, not just plates (height 8). 165-1.mpd: 55 → 214 connections (2026-03-28)
 - [x] Switch from .conn binary files to LDraw .dat parsing for stud/anti-stud extraction — universal coverage for all parts with .dat files (2026-03-28)
+- [x] Fix MPDParser filename normalization and recursive primitive expansion in ConnParser so `stug-*` group wrappers expand to their constituent studs; `3010` now resolves from 4 to 8 ports and regains graph connections (2026-05-20)
+- [x] Confirm tiles like `3070b` legitimately have no studs/ports and therefore no graph connections (2026-05-20)
 </details>
 
 ## Project Structure
